@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+        "lib": [
+            "es2023"
+        ],
+        "module": "ESNext",
+        "target": "ES2022",
+        "strict": true,
+        "checkJs": true,
+        "esModuleInterop": false,
+        "skipLibCheck": true,
+        "resolveJsonModule": true,
+        "forceConsistentCasingInFileNames": true,
+        "moduleResolution": "bundler",
+        "outDir": "./dist",
+    },
+    "include": [
+        "src/**/*"
+    ],
+    "watchOptions": {
+        "watchDirectory": "usefsevents",
+        "watchFile": "usefsevents"
+    },
+    "compileOnSave": true
+}

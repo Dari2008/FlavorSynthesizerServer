@@ -1,0 +1,60 @@
+import type { Digit } from "./Api";
+import type { Flavor, MainFlavor } from "./Flavors";
+
+export type User = {
+    uuid: string;
+    jwt: string;
+    displayName: string;
+}
+
+export type ServerDish = {
+    tracks: ServerFlavorSynthLine[];
+    name: string;
+    mainFlavor: MainFlavor;
+    volumes: DishVolumes;
+    publishState: "public" | "private";
+    createdAt: string;
+    createdBy: string;
+    uuid: UUID;
+    share: {
+        code: [Digit, Digit, Digit, Digit, Digit, Digit] | undefined,
+        flavors: [Flavor, Flavor, Flavor, Flavor, Flavor, Flavor] | undefined;
+        aiImage: string | undefined;
+    } | undefined;
+}
+
+export type RestaurantDish = Omit<ServerDish, "share"> & {
+    share?: {
+        aiImage?: string;
+    }
+};
+
+export type DishVolumes = {
+    master: number;
+    mainFlavor: number;
+    flavors: number;
+};
+
+
+export type FlavorElement = {
+    from: number;
+    to: number;
+    uuid: string;
+    flavor: Flavor;
+}
+
+export type ServerFlavorSynthLine = {
+    uuid: string;
+    elements: ServerFlavorElement[];
+    volume: number;
+    muted: boolean;
+    solo: boolean;
+};
+
+export type ServerFlavorElement = {
+    from: number;
+    to: number;
+    flavor: Flavor;
+}
+
+export type UUID = `${string}-${string}-${string}-${string}-${string}`;
