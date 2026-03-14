@@ -178,7 +178,7 @@ export default class ShareManager {
 
     public static async share(userUUID: UUID | null, flavors: ShareFlavors, dish: ServerDish) {
 
-        if (!!userUUID) {
+        if (!!userUUID && userUUID != null) {
             const shareUUID = await this.generateUUID();
             const dishRef = `${userUUID}.${dish.uuid}`;
             const code = await this.generateCode();
@@ -191,13 +191,13 @@ export default class ShareManager {
                 const aiGenResult = await this.generateAIIMage(flavors, code);
                 aiImage = !!aiGenResult ? aiGenResult : "";
             }
+            console.log(userUUID, shareUUID, dishRef, aiImage, code, flavors)
 
-
-            const result = await DBConnection.preparedQuery<ResultSetHeader>("INSERT INTO `shares` (`userUUID`, `uuid`, `dish`, `AIImage`, `code`, `flavors`) VALUES (:userUUID, :shareUIID, :dishRef, :aiImage, :code, :flavors)",
+            const result = await DBConnection.preparedQuery<ResultSetHeader>("INSERT INTO `shares` (`userUUID`, `uuid`, `dish`, `AIImage`, `code`, `flavors`) VALUES (:userUUID, :shareUUID, :dishRef, :aiImage, :code, :flavors)",
                 {
-                    userUUID,
+                    userUUID: userUUID,
                     shareUUID,
-                    dishRef,
+                    dishRef: JSON.stringify(dishRef),
                     aiImage,
                     code: JSON.stringify(code),
                     flavors: JSON.stringify(flavors)
@@ -218,7 +218,7 @@ export default class ShareManager {
 
             if (!code || !shareUUID) return;
 
-            const result = await DBConnection.preparedQuery<ResultSetHeader>("INSERT INTO `shares` (`userUUID`, `uuid`, `dish`, `AIImage`, `code`, `flavors`) VALUES (null, :shareUIID, :dish, :aiImage, :code, :flavors)",
+            const result = await DBConnection.preparedQuery<ResultSetHeader>("INSERT INTO `shares` (`uuid`, `dish`, `AIImage`, `code`, `flavors`) VALUES (:shareUUID, :dish, :aiImage, :code, :flavors)",
                 {
                     shareUUID,
                     dish: JSON.stringify(dish),

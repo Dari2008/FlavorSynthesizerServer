@@ -45,9 +45,8 @@ export default class ShareEndpoints {
 
             let userUUID = jwtData?.uuid;
 
-            let changedUUID = null;
-
-            if (userUUID && !dish.uuid || await DishManager.existsDishWithUUID(dish.uuid)) {
+            let changedUUID = undefined;
+            if (userUUID && (!dish.uuid || !(await DishManager.existsDishWithUUID(dish.uuid)))) {
                 const newUUID = await DishManager.generateNewUUID();
 
                 if (!newUUID) {
@@ -58,11 +57,9 @@ export default class ShareEndpoints {
 
                 dish.uuid = newUUID;
                 changedUUID = newUUID;
-                if (userUUID) {
-                    await DishManager.addDishes(userUUID, [dish]);
-                }
+                await DishManager.addDishes(userUUID, [dish]);
             }
-
+            console.log(changedUUID);
             const result = await ShareManager.share(userUUID ?? null, flavors, dish);
 
             if (result) {

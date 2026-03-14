@@ -9,6 +9,8 @@ import Users from "./Users";
 
 export default class DishManager {
 
+    private static PAGE_SIZE = 10;
+
     public static async generateNewUUID() {
         const uuids = await this.getAllUUIDs();
         if (!uuids) return null;
@@ -30,7 +32,15 @@ export default class DishManager {
         return rows[0]["cnt"] > 0;
     }
 
-    public static async queryDishes(sorted: SortedArg, limit: number = 20) {
+    public static async getPageCount() {
+        const result = await DBConnection.preparedQuery<RowDataPacket[]>(`SELECT count(*) as cnt FROM dishes WHERE \`publishState\` = 'public'`);
+        if (!result) return null;
+        const [rows] = result;
+        if (rows.length != 1) return 1;
+        return Math.ceil(rows[0]["cnt"] as number / DishManager.PAGE_SIZE);
+    }
+
+    public static async queryDishes(sorted: SortedArg, page: number = 0) {
         let order: string = "";
 
         switch (sorted) {
@@ -45,7 +55,7 @@ export default class DishManager {
                 break;
         }
 
-        const result = await DBConnection.preparedQuery<RowDataPacket[]>(`SELECT * FROM dishes WHERE \`publishState\` = 'public' ${order ?? ""} LIMIT :limit`, { limit: (limit + "") });
+        const result = await DBConnection.preparedQuery<RowDataPacket[]>(`SELECT * FROM dishes WHERE \`publishState\` = 'public' ${order ?? ""} LIMIT :pageSize OFFSET :page`, { page: ((page * DishManager.PAGE_SIZE) + ""), pageSize: (DishManager.PAGE_SIZE + "") });
         if (!result) return null;
         const [rows] = result;
 
@@ -115,7 +125,7 @@ export default class DishManager {
         } as ServerDish;
     }
 
-    public static async updateDish(userUUID: UUID, dishUUID: UUID, dish: ServerDish): Promise<boolean> {
+    public static async updateDish(userUUID: UUID, dishUUID: UUID, dish: Pick<ServerDish, "mainFlavor" | "name" | "tracks" | "volumes">): Promise<boolean> {
 
         const flavorCount = dish.tracks.map(e => e.elements.length).reduce((a, b) => a + b, 0);
 
@@ -131,6 +141,7 @@ export default class DishManager {
             });
         if (!result) return false;
         const [res] = result;
+        console.log(res.affectedRows, userUUID, dishUUID);
         return res.affectedRows == 1;
     }
 
@@ -146,7 +157,10 @@ export default class DishManager {
         return res.affectedRows == 1;
     }
 
-    public static async addDishes(userUUID: UUID, dishes: ServerDish[]) {
+    public static async addDishes(userUUID: UUID, dishes: Pick<ServerDish, "mainFlavor" | "name" | "tracks" | "volumes" | "uuid" | "publishState">[]) {
+        const username = await Users.getUserName(userUUID);
+        if (!username) return null;
+
         const uuids = await this.getAllUUIDs();
         const changed: {
             [key: string]: UUID;
@@ -161,15 +175,16 @@ export default class DishManager {
                 dish.uuid = uuid;
             }
 
-
+            const flavorCount = dish.tracks.flatMap(e => e.elements).length;
             all.push(DBConnection.preparedQuery<ResultSetHeader>(
                 "INSERT INTO `dishes` (`userUUID`, `uuid`, `tracks`, `publishState`, `flavor_count`, `creator`, `volumes`, `name`, `mainFlavor`) VALUES (:userUUID, :dishUUID, :tracks, :publishState, :flavorCount, :creator, :volumes, :name, :mainFlavor)",
                 {
                     userUUID,
                     dishUUID: uuid,
-                    publishState: dish.publishState,
+                    publishState: dish.publishState ?? "private",
                     tracks: JSON.stringify(dish.tracks),
-                    creator: dish.createdBy,
+                    creator: username ?? "Unknown",
+                    flavorCount: flavorCount,
                     volumes: JSON.stringify(dish.volumes),
                     name: dish.name,
                     mainFlavor: dish.mainFlavor
@@ -178,7 +193,7 @@ export default class DishManager {
 
         }
 
-        await Promise.allSettled(all);
+        await Promise.all(all);
 
         return changed;
     }
@@ -221,7 +236,7 @@ export default class DishManager {
         return undefined;
     }
 
-    public static async getDishes(userUUID: UUID, users: Users) {
+    public static async getDishes(userUUID: UUID) {
         // const username = await users.getUserName(userUUID);
 
 
@@ -263,7 +278,14 @@ export default class DishManager {
 
     public static async updateEntireDish(userUUID: UUID, dishUUID: UUID, tracks: ServerFlavorSynthLine[], mainFlavor: MainFlavor, name: string, volumes: DishVolumes) {
         const flavorCount = tracks.map(e => e.elements.length).reduce((a, b) => a + b, 0);
-        const result = await DBConnection.preparedQuery<ResultSetHeader>("UPDATE `dishes` SET `tracks` = :tracks, `volumes` = :volumes, `name` = :name, `mainFlavor` = :mainFlavor, `flavor_count` = :flavorCount WHERE `userUUID` = :userUUID AND `uuid` = :dishUUID",
+
+        const username = await Users.getUserName(userUUID);
+        if (!username) {
+            console.log("Name not found");
+            return false;
+        }
+
+        const result = await DBConnection.preparedQuery<ResultSetHeader>("INSERT INTO `dishes` (`userUUID`, `uuid`, `tracks`, `volumes`, `name`, `mainFlavor`, `flavor_count`, `publishState`, `creator`) VALUES (:userUUID, :dishUUID, :tracks, :volumes, :name, :mainFlavor, :flavorCount, 'private', :username) ON DUPLICATE KEY UPDATE `tracks` = VALUES(`tracks`), `volumes` = VALUES(`volumes`), `name` = VALUES(`name`), `mainFlavor` = VALUES(`mainFlavor`), `flavor_count` = VALUES(`flavor_count`);",
             {
                 userUUID,
                 dishUUID,
@@ -271,10 +293,12 @@ export default class DishManager {
                 mainFlavor: mainFlavor,
                 tracks: JSON.stringify(tracks),
                 name: name,
-                flavorCount
+                flavorCount,
+                username
             });
         if (!result) return false;
         const [res] = result;
+        console.log(res.affectedRows);
         return res.affectedRows == 1;
     }
 

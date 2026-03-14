@@ -23,15 +23,19 @@ export class JWTUtils {
     public static getData(jwtstr: string): JWTData | null {
         const key = useDotEnv().JWT_KEY;
 
-        if (!jwt.verify(jwtstr, key, {
-            ignoreExpiration: false,
-        })) return null;
+        try {
+            if (!jwt.verify(jwtstr, key, {
+                ignoreExpiration: false,
+            })) return null;
 
-        const data = jwt.decode(jwtstr, {
-            complete: true,
-            json: true
-        })?.payload;
-        return data as JWTData;
+            const data = jwt.decode(jwtstr, {
+                complete: true,
+                json: true
+            })?.payload;
+            return data as JWTData;
+        } catch (ex) {
+            return null;
+        }
     }
 
     public static checkJWTAndResponse<T>(jwt: string, res: Response<APIResponse<T, {}>, Record<string, any>>): null | JWTData {

@@ -58,7 +58,7 @@ export const RESTAURANT_LOAD_BODY: BodyFormat = {
             ],
             isNullable: true
         },
-        "limit": {
+        "page": {
             type: "number",
             isNullable: true
         }
@@ -145,7 +145,13 @@ export const DISH_FORMAT: BodyFormatNodes = {
 export const SHARE_BODY: BodyFormat = {
     type: "object",
     children: {
-        "dish": DISH_FORMAT,
+        "dish": {
+            type: "object",
+            children: {
+                ...DISH_FORMAT.children,
+                publishState: undefined
+            }
+        },
         "flavors": {
             type: "array",
             isNullable: false,
@@ -211,6 +217,83 @@ export const OPEN_SHARE_BODY: BodyFormat = {
                 type: "number"
             },
             length: 6
+        }
+    }
+}
+
+export const UPDATE_DISH_BODY: BodyFormat = {
+    type: "object",
+    children: {
+        mainFlavor: {
+            type: "string",
+            allowedValues: MAIN_FLAVORS
+        },
+        name: {
+            type: "string"
+        },
+        tracks: TRACKS_FORMAT,
+        volumes: VOLUMES_FORMAT,
+        uuid: UUID_FORMAT
+    }
+};
+
+export const ADD_DISH_BODY: BodyFormat = {
+    type: "object",
+    children: {
+        mainFlavor: {
+            type: "string",
+            allowedValues: MAIN_FLAVORS
+        },
+        name: {
+            type: "string"
+        },
+        tracks: TRACKS_FORMAT,
+        volumes: VOLUMES_FORMAT,
+        uuid: UUID_FORMAT
+    }
+};
+
+export const DELETE_DISH_BODY: BodyFormat = {
+    type: "object",
+    children: {
+        uuid: UUID_FORMAT
+    }
+};
+
+export const MULTIPLAYER_JOIN_BODY: BodyFormat = {
+    type: "object",
+    children: {
+        code: {
+            type: "array",
+            length: 6,
+            arrayValues: {
+                type: "number"
+            }
+        },
+        jwt: {
+            type: "string",
+            isNullable: true
+        },
+        name: {
+            type: "string"
+        }
+    }
+}
+
+export const MULTIPLAYER_CREATE_BODY: BodyFormat = {
+    type: "object",
+    children: {
+        dishUUID: UUID_FORMAT,
+        dish: {
+            ...DISH_FORMAT,
+            isNullable: true
+        },
+        jwt: {
+            type: "string",
+            isNullable: true
+        },
+        name: {
+            type: "string"
         }
     }
 }

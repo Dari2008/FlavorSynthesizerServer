@@ -39,12 +39,12 @@ export type DishVolumes = {
 export type FlavorElement = {
     from: number;
     to: number;
-    uuid: string;
+    uuid: UUID;
     flavor: Flavor;
 }
 
 export type ServerFlavorSynthLine = {
-    uuid: string;
+    uuid: UUID;
     elements: ServerFlavorElement[];
     volume: number;
     muted: boolean;
@@ -55,6 +55,7 @@ export type ServerFlavorElement = {
     from: number;
     to: number;
     flavor: Flavor;
+    uuid: UUID;
 }
 
 export type UUID = `${string}-${string}-${string}-${string}-${string}`;

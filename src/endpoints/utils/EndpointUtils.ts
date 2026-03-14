@@ -8,7 +8,8 @@ export default class EndpointUtils {
         function checkForArray(array: any[], format: BodyFormat_Array, key: string): true | string {
             if (!array && !format.isNullable) return `${key} has to be set`;
             if (!array && format.isNullable) return true;
-            if (format.length && array.length != format.length) return `${key} has too many elements`;
+            if (format.length && array.length > format.length) return `${key} has too many elements`;
+            if (format.length && array.length < format.length) return `${key} has too few elements`;
             if (!Array.isArray(array)) return `${key} is not an array`;
 
             let i = 0;
@@ -23,10 +24,12 @@ export default class EndpointUtils {
 
         function checkForObject(object: any, format: BodyFormat_Object, key: string): true | string {
             if ((object == null || object == undefined) && !format.isNullable) return `${key} has to be set`;
+            if (!object && format.isNullable) return true;
             if (Array.isArray(object)) return `${key} is not an object`;
 
             for (const key of Object.keys(format.children)) {
-                if (!object[key] && !format.children[key].isNullable) return `${key} has to be set`;
+                if (!format.children[key]) continue;
+                if ((object[key] == null || object[key] == undefined) && !format.children[key].isNullable) return `${key} has to be set`;
                 const success = check(object[key], format.children[key], key);
                 if (success !== true) return success;
             }
@@ -34,8 +37,8 @@ export default class EndpointUtils {
         }
 
         function checkForString(string: any, format: BodyFormat_String, key: string): true | string {
-            if (!string && !format.isNullable) return `${key} has to be set`;
-            if (!string && format.isNullable) return true;
+            if ((string == undefined || string == null) && !format.isNullable) return `${key} has to be set`;
+            if ((string == undefined || string == null) && format.isNullable) return true;
             if (Array.isArray(string)) return `${key} has to be a string`;
             if (format.length && (!string.length || string.length != format.length)) return `${key} has to be ${format.length} characters long`;
             if (format.allowedValues && !format.allowedValues.includes(string)) return `${key} has to be one of ${format.allowedValues.join(" | ")}`
@@ -45,15 +48,16 @@ export default class EndpointUtils {
         }
 
         function checkForBoolean(boolean: any, format: BodyFormat_Boolean, key: string): true | string {
-            if (!boolean && !format.isNullable) return `${key} has to be set`;
-            if (!boolean && format.isNullable) return true;
+            if ((boolean == undefined || boolean == null) && !format.isNullable) return `${key} has to be set`;
+            if ((boolean == undefined || boolean == null) && format.isNullable) return true;
             if (typeof boolean != "boolean") return `${key} has to be a boolean`;
             return true;
         }
 
         function checkForNumber(number: any, format: BodyFormat_Number, key: string): true | string {
-            if (!number && !format.isNullable) return `${key} has to be set`;
-            if (!number && format.isNullable) return true;
+            //Lol 0 was conmsidered as not set
+            if ((number == undefined || number == null) && !format.isNullable) return `${key} has to be set`;
+            if ((number == undefined || number == null) && format.isNullable) return true;
             if (typeof number != "number") return `${key} has to be a number`;
             return true;
         }
@@ -141,7 +145,7 @@ export type BodyFormat_Boolean = BodyFormat_Defaut & {
 export type BodyFormat_Object = BodyFormat_Defaut & {
     type: "object";
     children: {
-        [key: string]: BodyFormatNodes;
+        [key: string]: BodyFormatNodes | undefined;
     };
 }
 

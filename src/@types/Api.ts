@@ -34,7 +34,7 @@ export type ShareResponse = {
         code: ShareDigits;
         aiImage: string;
     };
-    changedUUID: UUID | null;
+    changedUUID: UUID | undefined;
 };
 
 export type OpenShareResponse = {
@@ -84,6 +84,10 @@ export type LoadRestaurantData = {
     dishes: RestaurantDish[];
 }
 
+export type PageCountRestaurantData = {
+    pages: number;
+}
+
 export type ImageAIResponse = {
     image: {
         type: "base64",
@@ -93,4 +97,23 @@ export type ImageAIResponse = {
         type: "credits",
         credits: number
     }
+}
+
+export type MultiplayerJoinResponse = {
+    endpointUUID: UUID;
+    gameUUID: UUID;
+};
+
+export type MultiplayerCreateResponse = {
+    gameUUID: UUID;
+    endpointUUID: UUID;
+    code: ShareDigits;
+}
+
+export type PlayerJoinResponse = {
+    playerState: {
+        muted: boolean;
+        kick: boolean;
+        onlyView: boolean;
+    };
 }
