@@ -40,4 +40,16 @@ export namespace DB {
         mainFlavor: MainFlavor;
     }
 
+    export type ServerCustomFlavor = {
+        audio: string;
+        image: string;
+        name: string;
+        colors: CustomFlavorColors;
+        isPublic: boolean;
+        uuid: UUID;
+        creator: string | undefined;
+    }
+
+    export type CustomFlavorColors = [string, string, string];
+
 }

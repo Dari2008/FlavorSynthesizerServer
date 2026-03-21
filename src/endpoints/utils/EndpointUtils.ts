@@ -43,7 +43,7 @@ export default class EndpointUtils {
             if (format.length && (!string.length || string.length != format.length)) return `${key} has to be ${format.length} characters long`;
             if (format.allowedValues && !format.allowedValues.includes(string)) return `${key} has to be one of ${format.allowedValues.join(" | ")}`
             if (typeof string != "string") return `${key} has to be a string`;
-            if (format.syntax && !format.syntax.test(string)) return `${key} ${format.errorMessageSyntax}`
+            if (format.syntax && !string.match(format.syntax)) return `${key} ${format.errorMessageSyntax}`
             return true;
         }
 

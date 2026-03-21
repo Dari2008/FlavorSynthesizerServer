@@ -283,7 +283,10 @@ export const MULTIPLAYER_JOIN_BODY: BodyFormat = {
 export const MULTIPLAYER_CREATE_BODY: BodyFormat = {
     type: "object",
     children: {
-        dishUUID: UUID_FORMAT,
+        dishUUID: {
+            ...UUID_FORMAT,
+            isNullable: true
+        },
         dish: {
             ...DISH_FORMAT,
             isNullable: true
@@ -297,3 +300,118 @@ export const MULTIPLAYER_CREATE_BODY: BodyFormat = {
         }
     }
 }
+
+export const CUSTOM_FLAVORS_GET_PUBLIC: BodyFormat = {
+    type: "object",
+    children: {
+        filter: {
+            type: "string",
+            allowedValues: [
+                "newest",
+                "oldest",
+                "most_downloaded"
+            ]
+        },
+        page: {
+            type: "number"
+        }
+    }
+}
+
+export const CUSTOM_FLAVORS_ADD: BodyFormat = {
+    type: "object",
+    children: {
+        jwt: {
+            type: "string"
+        },
+        name: {
+            type: "string"
+        },
+        audio: {
+            type: "string",
+            syntax: /(.*?);base64,(.*)/g,
+            errorMessageSyntax: "audio is not a valid base64 string"
+        },
+        image: {
+            type: "string",
+            syntax: /(.*?);base64,(.*)/g,
+            errorMessageSyntax: "image is not a valid base64 string"
+        },
+        colors: {
+            type: "array",
+            length: 3,
+            arrayValues: {
+                type: "string",
+                syntax: /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/gm,
+                errorMessageSyntax: " contains a color that doesnt have a valid syntax"
+            }
+        },
+        uuid: UUID_FORMAT
+    }
+};
+
+export const CUSTOM_FLAVORS_REMOVE: BodyFormat = {
+    type: "object",
+    children: {
+        jwt: {
+            type: "string"
+        },
+        uuid: UUID_FORMAT
+    }
+};
+
+
+
+export const CUSTOM_FLAVORS_GET_ALL: BodyFormat = {
+    type: "object",
+    children: {
+        jwt: {
+            type: "string"
+        },
+        localFlavors: {
+            type: "array",
+            isNullable: true,
+            arrayValues: {
+                type: "object",
+                children: {
+                    name: {
+                        type: "string"
+                    },
+                    audio: {
+                        type: "string",
+                        syntax: /(.*?);base64,(.*)/g,
+                        errorMessageSyntax: "audio is not a valid base64 string"
+                    },
+                    image: {
+                        type: "string",
+                        syntax: /(.*?);base64,(.*)/g,
+                        errorMessageSyntax: "image is not a valid base64 string"
+                    },
+                    colors: {
+                        type: "array",
+                        length: 3,
+                        arrayValues: {
+                            type: "string",
+                            syntax: /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/gm,
+                            errorMessageSyntax: "contains a color that doesnt have a valid syntax"
+                        }
+                    },
+                    uuid: UUID_FORMAT
+                }
+            }
+        }
+    }
+};
+
+export const CUSTOM_FLAVORS_UPDATE_VISIBILITY: BodyFormat = {
+    type: "object",
+    children: {
+        jwt: {
+            type: "string"
+        },
+        is: {
+            type: "boolean"
+        },
+        uuid: UUID_FORMAT
+    }
+};

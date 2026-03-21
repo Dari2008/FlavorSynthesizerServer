@@ -140,9 +140,7 @@ export default class DishManager {
                 flavorCount
             });
         if (!result) return false;
-        const [res] = result;
-        console.log(res.affectedRows, userUUID, dishUUID);
-        return res.affectedRows == 1;
+        return true;
     }
 
     public static async setVisibility(userUUID: UUID, dishUUID: UUID, visibility: DishVisibility) {
@@ -154,7 +152,7 @@ export default class DishManager {
             });
         if (!result) return false;
         const [res] = result;
-        return res.affectedRows == 1;
+        return true;
     }
 
     public static async addDishes(userUUID: UUID, dishes: Pick<ServerDish, "mainFlavor" | "name" | "tracks" | "volumes" | "uuid" | "publishState">[]) {
@@ -206,7 +204,7 @@ export default class DishManager {
             });
         if (!result) return false;
         const [res] = result;
-        return res.affectedRows == 1;
+        return true;
     }
 
     public static async getShareInfoForDish(userUUID: UUID, dishUUID: UUID) {
@@ -279,6 +277,8 @@ export default class DishManager {
     public static async updateEntireDish(userUUID: UUID, dishUUID: UUID, tracks: ServerFlavorSynthLine[], mainFlavor: MainFlavor, name: string, volumes: DishVolumes) {
         const flavorCount = tracks.map(e => e.elements.length).reduce((a, b) => a + b, 0);
 
+        console.log(userUUID, dishUUID, tracks, mainFlavor, name, volumes);
+
         const username = await Users.getUserName(userUUID);
         if (!username) {
             console.log("Name not found");
@@ -297,9 +297,7 @@ export default class DishManager {
                 username
             });
         if (!result) return false;
-        const [res] = result;
-        console.log(res.affectedRows);
-        return res.affectedRows == 1;
+        return true;
     }
 
 

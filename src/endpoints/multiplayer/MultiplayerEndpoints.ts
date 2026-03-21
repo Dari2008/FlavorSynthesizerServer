@@ -11,7 +11,8 @@ import ShareUtils from "../utils/ShareUtils";
 import { WebSocketServer, WebSocket } from "ws";
 import * as http from "http";
 import DishManager from "../../sql/DishManager";
-import { MultiplayerSocketBodyAddFlavor, MultiplayerSocketBodyAddSynthLine, MultiplayerSocketBodyChangeTrackVolume, MultiplayerSocketBodyChangeVolume, MultiplayerSocketBodyDeselectAllFlavors, MultiplayerSocketBodyDeselectFlavors, MultiplayerSocketBodyInitial, MultiplayerSocketBodyMessage, MultiplayerSocketBodyRemoveFlavors, MultiplayerSocketBodyRemoveSynthLine, MultiplayerSocketBodyRename, MultiplayerSocketBodySave, MultiplayerSocketBodySelectFlavors, MultiplayerSocketBodySelectOnly, MultiplayerSocketBodyUnknown, MultiplayerSocketBodyUpdateFlavors } from "./Bodys";
+import { MultiplayerSocketBodyAddFlavor, MultiplayerSocketBodyAddSynthLine, MultiplayerSocketBodyChangeTrackVolume, MultiplayerSocketBodyChangeVolume, MultiplayerSocketBodyDeselectAllFlavors, MultiplayerSocketBodyDeselectFlavors, MultiplayerSocketBodyInitial, MultiplayerSocketBodyKick, MultiplayerSocketBodyMessage, MultiplayerSocketBodyMute, MultiplayerSocketBodyRemoveFlavors, MultiplayerSocketBodyRemoveSynthLine, MultiplayerSocketBodyRename, MultiplayerSocketBodySave, MultiplayerSocketBodySelectFlavors, MultiplayerSocketBodySelectOnly, MultiplayerSocketBodyUnknown, MultiplayerSocketBodyUpdateFlavors, MultiplayerSocketBodyViewOnly } from "./Bodys";
+import Users from "../../sql/Users";
 
 export default class MultiplayerEndpoints {
 
@@ -19,6 +20,10 @@ export default class MultiplayerEndpoints {
 
     public static getOwner(game: Multiplayer.Meeting) {
         return game.users.find(e => e.endpointUUID == game.owner)!;
+    }
+
+    public static isOwner(endpointUUID: UUID, game: Multiplayer.Meeting) {
+        return game.owner == endpointUUID;
     }
 
     constructor(app: Express, server: http.Server) {
@@ -33,8 +38,14 @@ export default class MultiplayerEndpoints {
             const jwt = body.jwt;
             const code = body.code
 
-            const jwtData = jwt ? JWTUtils.checkJWTAndResponse(jwt, res) : null
+            const jwtData = jwt ? JWTUtils.checkJWTAndResponse(jwt, res) : null;
             if (!jwtData && jwt) return;
+
+            if (jwtData) {
+                const newLoadedName = await Users.getUserName(jwtData.uuid);
+                if (typeof newLoadedName == "string") jwtData.username = newLoadedName;
+            }
+
             const name = jwtData?.username ?? body.name;
 
             const game = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => ShareUtils.isShareCodeEqual(e.code, code));
@@ -101,6 +112,11 @@ export default class MultiplayerEndpoints {
 
             const jwtData = jwt ? JWTUtils.checkJWTAndResponse(jwt, res) : null;
             if (!jwtData && jwt) return;
+
+            if (jwtData) {
+                const newLoadedName = await Users.getUserName(jwtData.uuid);
+                if (typeof newLoadedName == "string") jwtData.username = newLoadedName;
+            }
 
             let dish: ServerDish | null = body.dish ?? null;
             const name = jwtData?.username ?? body.name;
@@ -178,7 +194,7 @@ function generateMeetingUUID() {
 function createGame(dish: ServerDish, owner: UUID): Multiplayer.Meeting {
     const uuid = generateMeetingUUID();
 
-    const broadcast = <T>(data: T, skip: UUID) => {
+    const broadcast = <T>(data: T, skip?: UUID) => {
         const game = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => e.uuid == uuid);
         if (!game) return false;
         game.users.filter(e => e.endpointUUID !== skip).forEach(user => {
@@ -243,6 +259,10 @@ class ConnectionHandler {
         // ws.on("resizFlavors", this.resizFlavors.bind(this));
     }
 
+    public close() {
+        this.ws.close();
+    }
+
     private async onConnectToGame({ endpointUUID, gameUUID }: MultiplayerSocketBodyInitial) {
 
         this.game = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => e.uuid == gameUUID);
@@ -264,7 +284,7 @@ class ConnectionHandler {
 
 
 
-        return { status: "success" };
+        return { status: "success", isMuted: this.user.isMuted, isViewOnly: this.user.onlyView };
     };
 
     private addFlavor({
@@ -278,6 +298,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         const track = this.game.tracks.find(e => e.uuid == trackUUID);
         if (!track) return "This track doesn't exist";
@@ -308,6 +329,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         this.game.tracks.push({
             uuid: synthLineUUID,
@@ -331,6 +353,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         this.game.tracks = this.game.tracks.filter(e => e.uuid != synthLineUUID);
 
@@ -345,6 +368,7 @@ class ConnectionHandler {
     private removeFlavors({ }: MultiplayerSocketBodyRemoveFlavors) {
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         const allLockedFlavors = this.game.users.filter(e => e.endpointUUID !== this.user?.endpointUUID).flatMap(e => e.selectedFlavors).map(e => e.flavorUUID);
 
@@ -376,6 +400,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         this.game.volumes[volumeSlot] = newVolume;
 
@@ -393,6 +418,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         const track = this.game.tracks.find(e => e.uuid == trackUUID);
         if (!track) return "Couldn't find track";
@@ -412,6 +438,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
         const allLockedFlavors = this.game.users.filter(e => e.endpointUUID !== this.user?.endpointUUID).flatMap(e => e.selectedFlavors).map(e => e.flavorUUID);
 
 
@@ -436,6 +463,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         const allLockedFlavors = this.game.users.filter(e => e.endpointUUID !== this.user?.endpointUUID).flatMap(e => e.selectedFlavors).map(e => e.flavorUUID);
 
@@ -459,6 +487,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         this.user.selectedFlavors = this.user.selectedFlavors.filter(e => !flavorUUIDs.includes(e));
 
@@ -474,6 +503,7 @@ class ConnectionHandler {
     private deselectAllFlavors({ }: MultiplayerSocketBodyDeselectAllFlavors) {
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         this.user.selectedFlavors = [];
 
@@ -490,6 +520,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         const tracks = this.game.tracks;
         const allLockedFlavors = this.game.users.filter(e => e.endpointUUID !== this.user?.endpointUUID).flatMap(e => e.selectedFlavors);
@@ -563,6 +594,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
 
         this.game.name = newName;
 
@@ -579,6 +611,7 @@ class ConnectionHandler {
     private async save({ }: MultiplayerSocketBodySave) {
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.isViewOnly()) return "Cant edit";
         const owner = MultiplayerEndpoints.getOwner(this.game);
         if (!owner) {
             return "Couldn't find the owner!";
@@ -595,6 +628,7 @@ class ConnectionHandler {
         if (errors !== true) return errors;
         if (!this.game) return "game not found";
         if (!this.user) return "user not found";
+        if (this.user.isMuted) return "You are Muted";
 
         this.game.broadcast({
             type: "chatMessage",
@@ -629,11 +663,88 @@ class ConnectionHandler {
     }
 
 
+    public kick({ playerEndpointUUID }: MultiplayerSocketBodyKick) {
+        if (!this.game) return "game not found";
+        if (!this.user) return "user not found";
+        if (!MultiplayerEndpoints.isOwner(this.user.endpointUUID, this.game)) {
+            return "You dont have the permissions to do that";
+        }
+
+        const target = this.game.users.find(e => e.endpointUUID == playerEndpointUUID);
+        if (!target) {
+            return "Failed to find user";
+        }
+
+        target.connectionHandler?.send({
+            type: "kick"
+        });
+
+        target.connectionHandler?.close();
+
+        this.game.users = this.game.users.filter(e => e.endpointUUID !== playerEndpointUUID);
+
+        return { status: "success" };
+    }
+
+    public mute({ playerEndpointUUID, is }: MultiplayerSocketBodyMute) {
+        if (!this.game) return "game not found";
+        if (!this.user) return "user not found";
+        if (!MultiplayerEndpoints.isOwner(this.user.endpointUUID, this.game)) {
+            return "You dont have the permissions to do that";
+        }
+        const target = this.game.users.find(e => e.endpointUUID == playerEndpointUUID);
+        if (!target) {
+            return "Failed to find user";
+        }
+
+        target.connectionHandler?.send({
+            type: "mute",
+            is: is
+        });
+
+        target.isMuted = is ?? true;
+
+        return { status: "success" };
+    }
+
+    public viewOnly({ playerEndpointUUID, is }: MultiplayerSocketBodyViewOnly) {
+        if (!this.game) return "game not found";
+        if (!this.user) return "user not found";
+        if (!MultiplayerEndpoints.isOwner(this.user.endpointUUID, this.game)) {
+            return "You dont have the permissions to do that";
+        }
+        const target = this.game.users.find(e => e.endpointUUID == playerEndpointUUID);
+        if (!target) {
+            return "Failed to find user";
+        }
+
+        target.connectionHandler?.send({
+            type: "viewOnly",
+            is: is
+        });
+
+        this.game.broadcast({
+            type: "deselectAllFlavors",
+            endpointUUID: playerEndpointUUID
+        }, undefined);
+
+        this.user.selectedFlavors = [];
+
+        target.onlyView = is ?? true;
+
+        return { status: "success" };
+    }
+
+
     public sendResponse<T>(data: T, reqId: number) {
         this.ws.send(JSON.stringify({
             ...data,
             reqId: reqId == -1 ? undefined : reqId
         }));
+    }
+
+    public isViewOnly() {
+        return this.user && this.user.onlyView;
     }
 
     public async messageReceived(rawData: WebSocket.RawData) {
@@ -644,15 +755,6 @@ class ConnectionHandler {
             if (data.reqId != null && data.reqId != undefined && data.reqId < 0) {
                 this.callbacks[data.reqId as number]?.(data as APIResponse<any>);
                 delete this.callbacks[data.reqId as number];
-                return;
-            }
-
-            if (this.user && this.user.onlyView) {
-                this.ws.send(JSON.stringify({
-                    reqId: data.reqId,
-                    status: "error",
-                    message: "You may only view!"
-                }));
                 return;
             }
 
@@ -674,7 +776,7 @@ class ConnectionHandler {
                 case "addSynthLine":
                     result = await this.addSynthLine(data) as any;
                     break;
-                case "removedSynthLine":
+                case "removeSynthLine":
                     result = await this.removedSynthLine(data) as any;
                     break;
                 case "removeFlavors":
@@ -709,6 +811,16 @@ class ConnectionHandler {
                     break;
                 case "message":
                     result = await this.message(data) as any;
+                    break;
+
+                case "kick":
+                    result = await this.kick(data) as any;
+                    break;
+                case "mute":
+                    result = await this.mute(data) as any;
+                    break;
+                case "viewOnly":
+                    result = await this.viewOnly(data) as any;
                     break;
 
                 default:
@@ -849,7 +961,7 @@ export namespace Multiplayer {
         code: ShareDigits;
         uuid: UUID;
         owner: UUID;
-        broadcast: <T>(data: T, skip: UUID) => boolean;
+        broadcast: <T>(data: T, skip?: UUID) => boolean;
         senDataTo: <T>(receiverEndpointUUID: UUID, data: T) => boolean
     };
 }

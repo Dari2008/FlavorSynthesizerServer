@@ -72,3 +72,29 @@ export type MultiplayerEndpointCreateBody = UserAction & {
     dish?: ServerDish;
     name: string;
 }
+
+export type CustomFlavorGetPublicBody = {
+    filter: "newest" | "oldest" | "most_downloaded";
+    page: number;
+}
+
+export type CustomFlavorAddBody = UserAction & {
+    uuid: UUID;
+    name: string;
+    audio: string;
+    image: string;
+    colors: [string, string, string];
+}
+
+export type CustomFlavorDeleteBody = UserAction & {
+    uuid: UUID;
+}
+
+export type CustomFlavorGetAllBody = UserAction & {
+    localFlavors?: DB.ServerCustomFlavor[];
+};
+
+export type CustomFlavorUpdateVisibilityBody = UserAction & {
+    uuid: UUID;
+    is: boolean;
+};

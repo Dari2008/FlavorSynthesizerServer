@@ -22,7 +22,10 @@ export type MultiplayerSocketBodyUnknown = MultiplayerSocketBodyInitial |
     MultiplayerSocketBodyRename |
     MultiplayerSocketBodySave |
     MultiplayerSocketBodyMessage |
-    MultiplayerSocketBody<"getDish">;
+    MultiplayerSocketBody<"getDish"> |
+    MultiplayerSocketBodyKick |
+    MultiplayerSocketBodyMute |
+    MultiplayerSocketBodyViewOnly;
 
 export type MultiplayerSocketBodyInitial = MultiplayerSocketBody<"initial"> & {
     gameUUID: UUID;
@@ -41,7 +44,7 @@ export type MultiplayerSocketBodyAddSynthLine = MultiplayerSocketBody<"addSynthL
     synthLineUUID: UUID;
 }
 
-export type MultiplayerSocketBodyRemoveSynthLine = MultiplayerSocketBody<"removedSynthLine"> & {
+export type MultiplayerSocketBodyRemoveSynthLine = MultiplayerSocketBody<"removeSynthLine"> & {
     synthLineUUID: UUID;
 }
 
@@ -84,6 +87,18 @@ export type MultiplayerSocketBodyMessage = MultiplayerSocketBody<"message"> & {
     message: string;
     time: number;
     uuid: UUID;
+}
+
+export type MultiplayerSocketBodyKick = MultiplayerSocketBody<"kick"> & {
+    playerEndpointUUID: UUID;
+}
+export type MultiplayerSocketBodyMute = MultiplayerSocketBody<"mute"> & {
+    playerEndpointUUID: UUID;
+    is: boolean;
+}
+export type MultiplayerSocketBodyViewOnly = MultiplayerSocketBody<"viewOnly"> & {
+    playerEndpointUUID: UUID;
+    is: boolean;
 }
 
 type MovedFlavor = {

@@ -51,9 +51,9 @@ export default class Users {
 
     public static async getUserName(userUUID: UUID) {
         const result = await DBConnection.preparedQuery<RowDataPacket[]>("SELECT `username` FROM `users` WHERE `uuid` = :userUUID", { userUUID });
-        if (!result) return true;
+        if (!result) return false;
         const [rows] = result;
-        if (rows.length != 1) return null;
+        if (rows.length != 1) return false;
         return rows[0]["username"] as string;
     }
 
