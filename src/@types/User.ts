@@ -1,5 +1,6 @@
-import type { Digit } from "./Api";
-import type { Flavor, MainFlavor } from "./Flavors";
+import type { Digit } from "./Api.js";
+import { DB } from "./db.js";
+import type { Flavor, MainFlavor } from "./Flavors.js";
 
 export type User = {
     uuid: string;
@@ -21,6 +22,11 @@ export type ServerDish = {
         flavors: [Flavor, Flavor, Flavor, Flavor, Flavor, Flavor] | undefined;
         aiImage: string | undefined;
     } | undefined;
+    customFlavors: UUID[];
+}
+
+export type MultiplayerServerDish = Omit<ServerDish, "customFlavors"> & {
+    customFlavors: DB.ServerCustomFlavor[];
 }
 
 export type RestaurantDish = Omit<ServerDish, "share"> & {

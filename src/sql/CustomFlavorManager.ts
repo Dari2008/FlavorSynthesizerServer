@@ -1,7 +1,7 @@
 import { ResultSetHeader, RowDataPacket } from "mysql2";
-import { DB } from "../@types/db";
-import { DBConnection } from "./DBConnection";
-import Users from "./Users";
+import { DB } from "../@types/db.js";
+import { DBConnection } from "./DBConnection.js";
+import Users from "./Users.js";
 import { UUID } from "node:crypto";
 
 export default class CustomFlavorManager {
@@ -23,6 +23,50 @@ export default class CustomFlavorManager {
                 creator: username
             });
         }
+
+        return customFlavors;
+    }
+
+    public static async getFlavors(userUUID: UUID, flavors: UUID[]) {
+        if (flavors.length == 0) return [];
+
+        const username = await Users.getUserName(userUUID);
+
+        let queryString = "";
+        const args: {
+            [key: string]: UUID;
+        } = {};
+
+        console.log(flavors);
+
+        for (let i = 0; i < flavors.length; i++) {
+            args["flavors_" + i] = flavors[i];
+            queryString += " :flavors_" + i + ",";
+        }
+
+        queryString = queryString.substring(1, queryString.length - 1);
+        console.log(queryString);
+
+        const response = await DBConnection.preparedQuery<RowDataPacket[]>("SELECT * FROM `customFlavors` WHERE `userUUID` = :userUUID AND `uuid` IN (" + queryString + ");", {
+            userUUID,
+            ...args
+        });
+        if (!response) return [];
+        const [rows,] = response;
+        const customFlavors: DB.ServerCustomFlavor[] = [];
+        for (const row of rows) {
+            customFlavors.push({
+                audio: row["audio"],
+                image: row["image"],
+                name: row["name"],
+                colors: row["colors"],
+                isPublic: row["isPublic"],
+                uuid: row["uuid"],
+                creator: username || "Unknown"
+            });
+        }
+
+        console.log(customFlavors);
 
         return customFlavors;
     }

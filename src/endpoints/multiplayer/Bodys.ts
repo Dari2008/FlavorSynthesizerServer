@@ -1,6 +1,7 @@
-import { Flavor } from "../../@types/Flavors";
-import { DishVolumes, UUID } from "../../@types/User";
-import { Multiplayer } from "./MultiplayerEndpoints";
+import { DB } from "../../@types/db.js";
+import { Flavor } from "../../@types/Flavors.js";
+import { DishVolumes, UUID } from "../../@types/User.js";
+import { Multiplayer } from "./MultiplayerEndpoints.js";
 
 export type MultiplayerSocketBody<E> = {
     type?: E;
@@ -25,7 +26,8 @@ export type MultiplayerSocketBodyUnknown = MultiplayerSocketBodyInitial |
     MultiplayerSocketBody<"getDish"> |
     MultiplayerSocketBodyKick |
     MultiplayerSocketBodyMute |
-    MultiplayerSocketBodyViewOnly;
+    MultiplayerSocketBodyViewOnly |
+    MultiplayerAddCustomFlavor;
 
 export type MultiplayerSocketBodyInitial = MultiplayerSocketBody<"initial"> & {
     gameUUID: UUID;
@@ -99,6 +101,14 @@ export type MultiplayerSocketBodyMute = MultiplayerSocketBody<"mute"> & {
 export type MultiplayerSocketBodyViewOnly = MultiplayerSocketBody<"viewOnly"> & {
     playerEndpointUUID: UUID;
     is: boolean;
+}
+
+export type MultiplayerAddCustomFlavor = MultiplayerSocketBody<"addCustomFlavor"> & {
+    image: string;
+    audio: string;
+    name: string;
+    uuid: UUID;
+    colors: DB.CustomFlavorColors;
 }
 
 type MovedFlavor = {

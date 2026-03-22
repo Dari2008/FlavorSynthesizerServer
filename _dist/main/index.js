@@ -6,21 +6,15 @@ import RestaurantEndpoints from "../endpoints/restaurant/RestaurantEndpoints.js"
 import DishesEndpoints from "../endpoints/dishes/DishesEndpoints.js";
 import { initDotEnv } from "../Dotenv.js";
 import cors from "cors";
-
 import { DBConnection } from "../sql/DBConnection.js";
 import MultiplayerEndpoints from "../endpoints/multiplayer/MultiplayerEndpoints.js";
 import CustomFlavorEndpoints from "../endpoints/customFlavors/CustomFlavorEndpoints.js";
-
 initDotEnv();
 DBConnection.initDBConnection();
-
 const APP = express();
-
 APP.use(cors());
 APP.use(bodyParser.json({ limit: "20mb" }));
-
 const SERVER = APP.listen(2223, () => console.log("Started Server"));
-
 const usersEndpoints = new UsersEndpoints(APP);
 const shareEndpoints = new ShareEndpoints(APP);
 const restaurantEndpoints = new RestaurantEndpoints(APP);

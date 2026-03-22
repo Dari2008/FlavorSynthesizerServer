@@ -1,4 +1,4 @@
-import { ShareDigits } from "../../@types/Api";
+import { ShareDigits } from "../../@types/Api.js";
 
 export default class ShareUtils {
     public static isShareCodeEqual(code1: ShareDigits, code2: ShareDigits): boolean {

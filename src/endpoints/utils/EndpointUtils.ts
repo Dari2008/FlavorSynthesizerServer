@@ -1,5 +1,5 @@
 import { isStringObject } from "util/types";
-import { APIResponse, ErrorAPIResponse } from "../../@types/Api";
+import { APIResponse, ErrorAPIResponse } from "../../@types/Api.js";
 import { Response } from "express";
 
 export default class EndpointUtils {

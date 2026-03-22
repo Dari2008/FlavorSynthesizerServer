@@ -1,92 +1,57 @@
-import { Express } from "express";
-import { MultiplayerEndpointCreateBody, MultiplayerEndpointJoinBody } from "../../@types/Endpoints.js";
 import EndpointUtils from "../utils/EndpointUtils.js";
 import { MULTIPLAYER_CREATE_BODY, MULTIPLAYER_JOIN_BODY } from "../../@types/ApiBodyFormats/Users.js";
 import Utils, { JWTUtils } from "../../utils/Utils.js";
-import { randomInt, UUID } from "node:crypto";
-import { DishVolumes, FlavorElement, MultiplayerServerDish, ServerDish, ServerFlavorSynthLine } from "../../@types/User.js";
-import { MainFlavor } from "../../@types/Flavors.js";
-import { APIResponse, Digit, MultiplayerCreateResponse, MultiplayerJoinResponse, PlayerJoinResponse, ShareDigits } from "../../@types/Api.js";
+import { randomInt } from "node:crypto";
 import ShareUtils from "../utils/ShareUtils.js";
-import { WebSocketServer, WebSocket } from "ws";
-import * as http from "http";
+import { WebSocketServer } from "ws";
 import DishManager from "../../sql/DishManager.js";
-import { MultiplayerAddCustomFlavor, MultiplayerSocketBodyAddFlavor, MultiplayerSocketBodyAddSynthLine, MultiplayerSocketBodyChangeTrackVolume, MultiplayerSocketBodyChangeVolume, MultiplayerSocketBodyDeselectAllFlavors, MultiplayerSocketBodyDeselectFlavors, MultiplayerSocketBodyInitial, MultiplayerSocketBodyKick, MultiplayerSocketBodyMessage, MultiplayerSocketBodyMute, MultiplayerSocketBodyRemoveFlavors, MultiplayerSocketBodyRemoveSynthLine, MultiplayerSocketBodyRename, MultiplayerSocketBodySave, MultiplayerSocketBodySelectFlavors, MultiplayerSocketBodySelectOnly, MultiplayerSocketBodyUnknown, MultiplayerSocketBodyUpdateFlavors, MultiplayerSocketBodyViewOnly } from "./Bodys.js";
 import Users from "../../sql/Users.js";
-import { DB } from "../../@types/db.js";
-
 export default class MultiplayerEndpoints {
-
-    public static CURRENT_RUNNING_MULTIPLAYER: Multiplayer.Meeting[] = [];
-
-    public static getOwner(game: Multiplayer.Meeting) {
-        return game.users.find(e => e.endpointUUID == game.owner)!;
+    static CURRENT_RUNNING_MULTIPLAYER = [];
+    static getOwner(game) {
+        return game.users.find(e => e.endpointUUID == game.owner);
     }
-
-    public static isOwner(endpointUUID: UUID, game: Multiplayer.Meeting) {
+    static isOwner(endpointUUID, game) {
         return game.owner == endpointUUID;
     }
-
-    constructor(app: Express, server: http.Server) {
+    constructor(app, server) {
         this.init(app, server);
-        this.initAutoDestroyGame();
     }
-
-    private initAutoDestroyGame() {
-        setInterval(() => {
-            MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.filter(game => {
-                const close = game.users.length > 0;
-                if (!close) {
-                    console.log("Closing unused game " + game.uuid);
-                }
-                return close;
-            });
-        }, 1000 * 60 * 0.3);
-    }
-
-    private init(app: Express, server: http.Server) {
-        app.post<string, any, APIResponse<MultiplayerJoinResponse>>("/multiplayer/join", async (req, res) => {
-            const body = req.body as MultiplayerEndpointJoinBody;
-            if (!EndpointUtils.checkAndSend(body, MULTIPLAYER_JOIN_BODY, res)) return;
-
+    init(app, server) {
+        app.post("/multiplayer/join", async (req, res) => {
+            const body = req.body;
+            if (!EndpointUtils.checkAndSend(body, MULTIPLAYER_JOIN_BODY, res))
+                return;
             const jwt = body.jwt;
-            const code = body.code
-
+            const code = body.code;
             const jwtData = jwt ? JWTUtils.checkJWTAndResponse(jwt, res) : null;
-            if (!jwtData && jwt) return;
-
+            if (!jwtData && jwt)
+                return;
             if (jwtData) {
                 const newLoadedName = await Users.getUserName(jwtData.uuid);
-                if (typeof newLoadedName == "string") jwtData.username = newLoadedName;
+                if (typeof newLoadedName == "string")
+                    jwtData.username = newLoadedName;
             }
-
             const name = jwtData?.username ?? body.name;
-
             const game = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => ShareUtils.isShareCodeEqual(e.code, code));
-
             if (!game) {
                 EndpointUtils.sendError(res, "Failed to join meeting", 404);
                 return;
             }
-
             const endpointUUID = Utils.uuidv4Exclude(game.users.map(e => e.endpointUUID));
-
-
-
-            const allowConnection = await MultiplayerEndpoints.getOwner(game).connectionHandler?.send<any, PlayerJoinResponse, PlayerJoinResponse>({
+            const allowConnection = await MultiplayerEndpoints.getOwner(game).connectionHandler?.send({
                 type: "playerJoined",
                 joinedPlayer: {
                     endpointUUID: endpointUUID,
                     name: name
                 }
             });
-
             let isMuted = false;
             let isViewOnly = false;
-
             if (allowConnection != undefined) {
                 const playerState = allowConnection.playerState;
                 if (playerState) {
+                    console.log(playerState);
                     if (playerState.kick) {
                         EndpointUtils.sendError(res, "You were not allowed to join", 401);
                         return;
@@ -95,7 +60,6 @@ export default class MultiplayerEndpoints {
                     isViewOnly = playerState.onlyView;
                 }
             }
-
             game.users.push({
                 connectionHandler: null,
                 endpointUUID,
@@ -105,49 +69,39 @@ export default class MultiplayerEndpoints {
                 isMuted,
                 onlyView: isViewOnly
             });
-
             EndpointUtils.sendOk(res, {
                 endpointUUID,
                 gameUUID: game.uuid
             });
         });
-
-        app.post<string, any, APIResponse<MultiplayerCreateResponse>>("/multiplayer/create", async (req, res) => {
-            const body = req.body as MultiplayerEndpointCreateBody;
-            if (!EndpointUtils.checkAndSend(body, MULTIPLAYER_CREATE_BODY, res)) return;
-
+        app.post("/multiplayer/create", async (req, res) => {
+            const body = req.body;
+            if (!EndpointUtils.checkAndSend(body, MULTIPLAYER_CREATE_BODY, res))
+                return;
             if (!body.jwt && !body.dish) {
                 EndpointUtils.sendError(res, "Failed to create multiplayer meeting", 405);
                 return;
             }
-
             const jwt = body.jwt;
-
             const jwtData = jwt ? JWTUtils.checkJWTAndResponse(jwt, res) : null;
-            if (!jwtData && jwt) return;
-
+            if (!jwtData && jwt)
+                return;
             if (jwtData) {
                 const newLoadedName = await Users.getUserName(jwtData.uuid);
-                if (typeof newLoadedName == "string") jwtData.username = newLoadedName;
+                if (typeof newLoadedName == "string")
+                    jwtData.username = newLoadedName;
             }
-
-            let dish: MultiplayerServerDish | null = body.dish ?? null;
+            let dish = body.dish ?? null;
             const name = jwtData?.username ?? body.name;
-
             if (body.dishUUID && jwtData) {
                 dish = await DishManager.getDish(jwtData.uuid, body.dishUUID);
             }
-
             if (!dish) {
                 EndpointUtils.sendError(res, "Failed to open dish for multipayer", 404);
                 return;
             }
-
             const endpointUUID = Utils.uuidv4();
-
-            const game: Multiplayer.Meeting = createGame(dish, endpointUUID);
-
-
+            const game = createGame(dish, endpointUUID);
             game.users.push({
                 connectionHandler: null,
                 endpointUUID,
@@ -157,90 +111,68 @@ export default class MultiplayerEndpoints {
                 isMuted: false,
                 onlyView: false
             });
-
             MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.push(game);
-
             EndpointUtils.sendOk(res, {
                 endpointUUID,
                 gameUUID: game.uuid,
                 code: game.code
             });
         });
-
         const wss = new WebSocketServer({
             server: server,
             path: "/multiplayer/live"
         });
-
         wss.on("connection", (ws) => {
             new ConnectionHandler(ws);
         });
-
     }
-
 }
-
-
 function generateCode() {
-    function generateSingleCode(): ShareDigits {
+    function generateSingleCode() {
         return [
-            randomInt(0, 9) as Digit,
-            randomInt(0, 9) as Digit,
-            randomInt(0, 9) as Digit,
-            randomInt(0, 9) as Digit,
-            randomInt(0, 9) as Digit,
-            randomInt(0, 9) as Digit,
+            randomInt(0, 9),
+            randomInt(0, 9),
+            randomInt(0, 9),
+            randomInt(0, 9),
+            randomInt(0, 9),
+            randomInt(0, 9),
         ];
     }
-
     let code = generateSingleCode();
     while (MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => ShareUtils.isShareCodeEqual(e.code, code))) {
         code = generateSingleCode();
     }
     return code;
 }
-
 function generateMeetingUUID() {
     return Utils.uuidv4Exclude(MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.map(e => e.uuid));
 }
-
-function createGame(dish: MultiplayerServerDish, owner: UUID): Multiplayer.Meeting {
+function createGame(dish, owner) {
     const uuid = generateMeetingUUID();
-
-    const broadcast = <T>(data: T, skip?: UUID) => {
+    const broadcast = (data, skip) => {
         const game = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => e.uuid == uuid);
-        if (!game) return false;
+        if (!game)
+            return false;
         game.users.filter(e => e.endpointUUID !== skip).forEach(user => {
-            if (!user.connectionHandler) return;
+            if (!user.connectionHandler)
+                return;
             user.connectionHandler.sendResponse(data, -1);
         });
         return true;
     };
-
-    const senDataTo = <T>(receiverEndpointUUID: UUID, data: T) => {
+    const senDataTo = (receiverEndpointUUID, data) => {
         const game = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => e.uuid == uuid);
-        if (!game) return false;
+        if (!game)
+            return false;
         game.users.forEach(user => {
-            if (!user.connectionHandler) return;
-            if (user.endpointUUID != receiverEndpointUUID) return;
+            if (!user.connectionHandler)
+                return;
+            if (user.endpointUUID != receiverEndpointUUID)
+                return;
             user.connectionHandler.sendResponse(data, -1);
         });
         return true;
-    }
-
-    const close = (reason: string) => {
-        const game = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => e.uuid == uuid);
-        if (!game) return false;
-        game.users.filter(e => e.endpointUUID !== game.owner).forEach(user => {
-            if (!user.connectionHandler) return;
-            user.connectionHandler.sendResponse({
-                type: "close",
-                reason: reason
-            }, -1);
-        });
-        return true;
-    }
-
+    };
     return {
         code: generateCode(),
         mainFlavor: dish.mainFlavor,
@@ -250,26 +182,19 @@ function createGame(dish: MultiplayerServerDish, owner: UUID): Multiplayer.Meeti
         volumes: dish.volumes,
         owner: owner,
         users: [],
-        customFlavors: dish.customFlavors,
         broadcast,
-        senDataTo,
-        close
+        senDataTo
     };
 }
-
-
 class ConnectionHandler {
-    private endpointUUID: UUID | undefined;
-    private gameUUID: UUID | undefined;
-    private game: Multiplayer.Meeting | undefined;
-    private ws: WebSocket;
-    private user: Multiplayer.User | undefined;
-    private callbacks: {
-        [key: number]: <T>(data: APIResponse<T>) => void;
-    } = {};
-    private currentReqId: number = -1;
-
-    constructor(ws: WebSocket) {
+    endpointUUID;
+    gameUUID;
+    game;
+    ws;
+    user;
+    callbacks = {};
+    currentReqId = -1;
+    constructor(ws) {
         this.ws = ws;
         ws.on("message", this.messageReceived.bind(this));
         ws.on("close", this.closedConnection.bind(this));
@@ -286,58 +211,45 @@ class ConnectionHandler {
         // ws.on("moveFlavors", this.moveFlavors.bind(this));
         // ws.on("resizFlavors", this.resizFlavors.bind(this));
     }
-
-    public close() {
+    close() {
         this.ws.close();
     }
-
-    private async onConnectToGame({ endpointUUID, gameUUID }: MultiplayerSocketBodyInitial) {
-
+    async onConnectToGame({ endpointUUID, gameUUID }) {
         this.game = MultiplayerEndpoints.CURRENT_RUNNING_MULTIPLAYER.find(e => e.uuid == gameUUID);
         if (!this.game) {
             return "Game not found";
         }
-
         this.user = this.game.users.find(e => e.endpointUUID == endpointUUID);
-
         if (!this.user) {
             return "User not found";
         }
         console.log("Player Joined successfully to Game with UUID", gameUUID, endpointUUID);
-
         this.game = this.game;
         this.endpointUUID = endpointUUID;
         this.gameUUID = gameUUID;
         this.user.connectionHandler = this;
-
-
-
         return { status: "success", isMuted: this.user.isMuted, isViewOnly: this.user.onlyView };
-    };
-
-    private addFlavor({
-        flavor,
-        from,
-        to,
-        uuid,
-        trackUUID
-    }: MultiplayerSocketBodyAddFlavor) {
+    }
+    ;
+    addFlavor({ flavor, from, to, uuid, trackUUID }) {
         const errors = reqireArgsReturn({ uuid, to, from, flavor }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         const track = this.game.tracks.find(e => e.uuid == trackUUID);
-        if (!track) return "This track doesn't exist";
-
+        if (!track)
+            return "This track doesn't exist";
         track.elements.push({
             flavor,
             from,
             to,
             uuid
         });
-
         const success = this.game?.broadcast({
             type: "addFlavor",
             trackUUID,
@@ -348,17 +260,20 @@ class ConnectionHandler {
                 uuid
             }
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
     }
-
-    private addSynthLine({ synthLineUUID }: MultiplayerSocketBodyAddSynthLine) {
+    addSynthLine({ synthLineUUID }) {
         const errors = reqireArgsReturn({ synthLineUUID }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         this.game.tracks.push({
             uuid: synthLineUUID,
             elements: [],
@@ -366,325 +281,294 @@ class ConnectionHandler {
             solo: false,
             volume: 100
         });
-
         const success = this.game?.broadcast({
             type: "addSynthLine",
             synthLineUUID,
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
-
     }
-
-    private removedSynthLine({ synthLineUUID }: MultiplayerSocketBodyRemoveSynthLine) {
+    removedSynthLine({ synthLineUUID }) {
         const errors = reqireArgsReturn({ synthLineUUID }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         this.game.tracks = this.game.tracks.filter(e => e.uuid != synthLineUUID);
-
         const success = this.game?.broadcast({
             type: "removeSynthLine",
             synthLineUUID,
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
     }
-
-    private removeFlavors({ }: MultiplayerSocketBodyRemoveFlavors) {
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+    removeFlavors({}) {
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         const allLockedFlavors = this.game.users.filter(e => e.endpointUUID !== this.user?.endpointUUID).flatMap(e => e.selectedFlavors).map(e => e.flavorUUID);
-
         const selectedFlavors = this.user.selectedFlavors;
-
-
         for (const flavor of selectedFlavors) {
-            if (allLockedFlavors.includes(flavor.flavorUUID)) continue;
+            if (allLockedFlavors.includes(flavor.flavorUUID))
+                continue;
             const track = this.game.tracks.find(e => e.uuid == flavor.trackUUID);
-            if (!track) continue;
-
+            if (!track)
+                continue;
             track.elements = track.elements.filter(e => e.uuid !== flavor.flavorUUID);
         }
-
-
         const success = this.game?.broadcast({
             type: "removeFlavors",
             selectedFlavors: [...new Set(selectedFlavors)]
         }, this.user.endpointUUID);
-
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
-
-
     }
-
-    private changeVolume({ newVolume, volumeSlot }: MultiplayerSocketBodyChangeVolume) {
+    changeVolume({ newVolume, volumeSlot }) {
         const errors = reqireArgsReturn({ newVolume, volumeSlot }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
-        this.game.volumes[volumeSlot as keyof DishVolumes] = newVolume;
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
+        this.game.volumes[volumeSlot] = newVolume;
         const success = this.game?.broadcast({
             type: "changeVolume",
             newVolume,
             volumeSlot
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
     }
-
-    private changeTrackVolume({ newVolume, trackUUID }: MultiplayerSocketBodyChangeTrackVolume) {
+    changeTrackVolume({ newVolume, trackUUID }) {
         const errors = reqireArgsReturn({ newVolume, trackUUID }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         const track = this.game.tracks.find(e => e.uuid == trackUUID);
-        if (!track) return "Couldn't find track";
+        if (!track)
+            return "Couldn't find track";
         track.volume = newVolume;
-
         const success = this.game?.broadcast({
             type: "changeTrackVolume",
             newVolume,
             trackUUID
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
     }
-
-    private selectFlavors({ flavorUUIDs }: MultiplayerSocketBodySelectFlavors) {
+    selectFlavors({ flavorUUIDs }) {
         const errors = reqireArgsReturn({ flavorUUIDs }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         const allLockedFlavors = this.game.users.filter(e => e.endpointUUID !== this.user?.endpointUUID).flatMap(e => e.selectedFlavors).map(e => e.flavorUUID);
-
-
         const selectedByOtherUsers = flavorUUIDs.filter(e => allLockedFlavors.includes(e.flavorUUID));
         flavorUUIDs = flavorUUIDs.filter(e => !allLockedFlavors.includes(e.flavorUUID));
-
         this.user.selectedFlavors = [...new Set([...this.user.selectedFlavors, ...flavorUUIDs])];
-
-
-
         const success = this.game?.broadcast({
             type: "selectFlavors",
             endpointUUID: this.user.endpointUUID,
             flavorUUIDs
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success", selectedByOtherUsers: selectedByOtherUsers.length == 0 ? undefined : selectedByOtherUsers };
     }
-
-    private selectOnly({ flavorUUID }: MultiplayerSocketBodySelectOnly) {
+    selectOnly({ flavorUUID }) {
         const errors = reqireArgsReturn({ flavorUUID }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         const allLockedFlavors = this.game.users.filter(e => e.endpointUUID !== this.user?.endpointUUID).flatMap(e => e.selectedFlavors).map(e => e.flavorUUID);
-
         if (allLockedFlavors.includes(flavorUUID)) {
             return "Failed to select Flavor";
         }
-
-
-
         const success = this.game?.broadcast({
             type: "selectOnly",
             endpointUUID: this.user.endpointUUID,
             flavorUUID
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
     }
-
-    private deselectFlavors({ flavorUUIDs }: MultiplayerSocketBodyDeselectFlavors) {
+    deselectFlavors({ flavorUUIDs }) {
         const errors = reqireArgsReturn({ flavorUUIDs }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         this.user.selectedFlavors = this.user.selectedFlavors.filter(e => !flavorUUIDs.includes(e));
-
         const success = this.game?.broadcast({
             type: "deselectFlavors",
             endpointUUID: this.user.endpointUUID,
             flavorUUIDs
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
     }
-
-    private deselectAllFlavors({ }: MultiplayerSocketBodyDeselectAllFlavors) {
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+    deselectAllFlavors({}) {
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         this.user.selectedFlavors = [];
-
         const success = this.game?.broadcast({
             type: "deselectAllFlavors",
             endpointUUID: this.user.endpointUUID
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
     }
-
-    private updateFlavors({ flavors }: MultiplayerSocketBodyUpdateFlavors) {
+    updateFlavors({ flavors }) {
         const errors = reqireArgsReturn({ flavors }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         const tracks = this.game.tracks;
         const allLockedFlavors = this.game.users.filter(e => e.endpointUUID !== this.user?.endpointUUID).flatMap(e => e.selectedFlavors);
-
-        const originalPositions: {
-            [key: string]: {
-                from: number;
-                to: number;
-            }
-        } = {};
-
+        const originalPositions = {};
         for (const change of flavors) {
             const track = tracks.find(e => e.uuid == change.trackUUID);
-            if (!track) continue;
+            if (!track)
+                continue;
             const flavor = track.elements.find(e => e.uuid == change.uuid);
-            if (!flavor) continue;
+            if (!flavor)
+                continue;
             originalPositions[flavor.uuid] = {
                 from: flavor.from,
                 to: flavor.to
             };
         }
-
         for (const change of flavors) {
             const track = tracks.find(e => e.uuid == change.trackUUID);
-            if (!track) continue;
+            if (!track)
+                continue;
             const flavor = track.elements.find(e => e.uuid == change.uuid);
-            if (!flavor) continue;
-
-            if (allLockedFlavors.map(e => e.flavorUUID).includes(flavor.uuid)) continue;
-
+            if (!flavor)
+                continue;
+            if (allLockedFlavors.map(e => e.flavorUUID).includes(flavor.uuid))
+                continue;
             flavor.from = change.from;
             flavor.to = change.to;
         }
-
-        const intersects = (flavor1: FlavorElement, flavor2: FlavorElement) => {
+        const intersects = (flavor1, flavor2) => {
             return (flavor1.from >= flavor2.from && flavor1.to <= flavor2.from) || (flavor2.from >= flavor1.from && flavor2.to <= flavor1.from);
-        }
-
+        };
         const changedUUIds = flavors.map(e => e.uuid);
         const undoneFlavors = [];
-
         for (const track of this.game.tracks) {
             const flavors = track.elements;
             for (const flavor1 of flavors) {
                 for (const flavor2 of flavors) {
-                    if (!intersects(flavor1, flavor2)) continue;
-
+                    if (!intersects(flavor1, flavor2))
+                        continue;
                     const changedFlavor = changedUUIds.includes(flavor1.uuid) ? flavor1 : flavor2;
                     const originalPosition = originalPositions[changedFlavor.uuid];
-                    if (!originalPosition) continue;
-
+                    if (!originalPosition)
+                        continue;
                     changedFlavor.from = originalPosition.from;
                     changedFlavor.to = originalPosition.to;
                     undoneFlavors.push(changedFlavor.uuid);
                 }
             }
         }
-
-
         const success = this.game?.broadcast({
             type: "updateFlavors",
             flavors
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
-
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success", undoneFlavors: undoneFlavors.length == 0 ? undefined : undoneFlavors };
     }
-
-    private addCustomFlavor({ audio, colors, image, name, uuid }: MultiplayerAddCustomFlavor) {
-        const errors = reqireArgsReturn({ audio, colors, image, name, uuid }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-        const newCustomFlavor = {
-            audio,
-            colors,
-            image,
-            name,
-            uuid,
-            creator: MultiplayerEndpoints.getOwner(this.game).name,
-            isPublic: false
-        };
-        this.game?.customFlavors.push(newCustomFlavor);
-
-
-        const success = this.game?.broadcast({
-            type: "addCustomFlavor",
-            newCustomFlavor
-        }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
-
-        return { status: "success" };
-    }
-
-    private rename({ newName }: MultiplayerSocketBodyRename) {
+    rename({ newName }) {
         const errors = reqireArgsReturn({ newName }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         this.game.name = newName;
-
         const success = this.game?.broadcast({
             type: "rename",
             newName
         }, this.user.endpointUUID);
-        if (!success) return "Failed to send broadcast";
-
+        if (!success)
+            return "Failed to send broadcast";
         return { status: "success" };
-
     }
-
-    private async save({ }: MultiplayerSocketBodySave) {
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.isViewOnly()) return "Cant edit";
+    async save({}) {
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.isViewOnly())
+            return "Cant edit";
         const owner = MultiplayerEndpoints.getOwner(this.game);
         if (!owner) {
             return "Couldn't find the owner!";
         }
-
         owner.connectionHandler?.send({
             type: "save"
         });
         return { status: "success" };
     }
-
-    private async message({ message, time, uuid }: MultiplayerSocketBodyMessage) {
+    async message({ message, time, uuid }) {
         const errors = reqireArgsReturn({ message, time }, "all");
-        if (errors !== true) return errors;
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
-        if (this.user.isMuted) return "You are Muted";
-
+        if (errors !== true)
+            return errors;
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
+        if (this.user.isMuted)
+            return "You are Muted";
         this.game.broadcast({
             type: "chatMessage",
             message: {
@@ -694,13 +578,13 @@ class ConnectionHandler {
                 uuid
             }
         }, this.user.endpointUUID);
-
         return { status: "success" };
     }
-
-    private async getDish({ }: {}) {
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
+    async getDish({}) {
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
         return {
             status: "success",
             dish: {
@@ -712,39 +596,34 @@ class ConnectionHandler {
                 createdAt: "now lol",
                 createdBy: MultiplayerEndpoints.getOwner(this.game)?.name,
                 publishState: "private",
-                customFlavors: this.game.customFlavors,
                 share: undefined
-            } as MultiplayerServerDish
-        }
+            }
+        };
     }
-
-
-    public kick({ playerEndpointUUID }: MultiplayerSocketBodyKick) {
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
+    kick({ playerEndpointUUID }) {
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
         if (!MultiplayerEndpoints.isOwner(this.user.endpointUUID, this.game)) {
             return "You dont have the permissions to do that";
         }
-
         const target = this.game.users.find(e => e.endpointUUID == playerEndpointUUID);
         if (!target) {
             return "Failed to find user";
         }
-
         target.connectionHandler?.send({
             type: "kick"
         });
-
         target.connectionHandler?.close();
-
         this.game.users = this.game.users.filter(e => e.endpointUUID !== playerEndpointUUID);
-
         return { status: "success" };
     }
-
-    public mute({ playerEndpointUUID, is }: MultiplayerSocketBodyMute) {
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
+    mute({ playerEndpointUUID, is }) {
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
         if (!MultiplayerEndpoints.isOwner(this.user.endpointUUID, this.game)) {
             return "You dont have the permissions to do that";
         }
@@ -752,20 +631,18 @@ class ConnectionHandler {
         if (!target) {
             return "Failed to find user";
         }
-
         target.connectionHandler?.send({
             type: "mute",
             is: is
         });
-
         target.isMuted = is ?? true;
-
         return { status: "success" };
     }
-
-    public viewOnly({ playerEndpointUUID, is }: MultiplayerSocketBodyViewOnly) {
-        if (!this.game) return "game not found";
-        if (!this.user) return "user not found";
+    viewOnly({ playerEndpointUUID, is }) {
+        if (!this.game)
+            return "game not found";
+        if (!this.user)
+            return "user not found";
         if (!MultiplayerEndpoints.isOwner(this.user.endpointUUID, this.game)) {
             return "You dont have the permissions to do that";
         }
@@ -773,213 +650,175 @@ class ConnectionHandler {
         if (!target) {
             return "Failed to find user";
         }
-
         target.connectionHandler?.send({
             type: "viewOnly",
             is: is
         });
-
         this.game.broadcast({
             type: "deselectAllFlavors",
             endpointUUID: playerEndpointUUID
         }, undefined);
-
         this.user.selectedFlavors = [];
-
         target.onlyView = is ?? true;
-
         return { status: "success" };
     }
-
-
-    public sendResponse<T>(data: T, reqId: number) {
+    sendResponse(data, reqId) {
         this.ws.send(JSON.stringify({
             ...data,
             reqId: reqId == -1 ? undefined : reqId
         }));
     }
-
-    public isViewOnly() {
+    isViewOnly() {
         return this.user && this.user.onlyView;
     }
-
-    public async messageReceived(rawData: WebSocket.RawData) {
+    async messageReceived(rawData) {
         try {
-            const data = JSON.parse(rawData.toString()) as MultiplayerSocketBodyUnknown;
-            if (!reqireArgs(data, ["type", "reqId"], this.sendResponse)) return;
-
+            const data = JSON.parse(rawData.toString());
+            if (!reqireArgs(data, ["type", "reqId"], this.sendResponse))
+                return;
             if (data.reqId != null && data.reqId != undefined && data.reqId < 0) {
-                this.callbacks[data.reqId as number]?.(data as APIResponse<any>);
-                delete this.callbacks[data.reqId as number];
+                this.callbacks[data.reqId]?.(data);
+                delete this.callbacks[data.reqId];
                 return;
             }
-
-            let result: {
-                status: "error" | "success";
-                message?: string;
-            } | string | null | undefined = undefined;
-
+            let result = undefined;
             switch (data.type) {
                 case "getDish":
-                    result = await this.getDish(data) as any;
+                    result = await this.getDish(data);
                     break;
                 case "initial":
-                    result = await this.onConnectToGame(data) as any;
+                    result = await this.onConnectToGame(data);
                     break;
                 case "addFlavor":
-                    result = await this.addFlavor(data) as any;
+                    result = await this.addFlavor(data);
                     break;
                 case "addSynthLine":
-                    result = await this.addSynthLine(data) as any;
+                    result = await this.addSynthLine(data);
                     break;
                 case "removeSynthLine":
-                    result = await this.removedSynthLine(data) as any;
+                    result = await this.removedSynthLine(data);
                     break;
                 case "removeFlavors":
-                    result = await this.removeFlavors(data) as any;
+                    result = await this.removeFlavors(data);
                     break;
                 case "changeVolume":
-                    result = await this.changeVolume(data) as any;
+                    result = await this.changeVolume(data);
                     break;
                 case "changeTrackVolume":
-                    result = await this.changeTrackVolume(data) as any;
+                    result = await this.changeTrackVolume(data);
                     break;
                 case "selectFlavors":
-                    result = await this.selectFlavors(data) as any;
+                    result = await this.selectFlavors(data);
                     break;
                 case "selectOnly":
-                    result = await this.selectOnly(data) as any;
+                    result = await this.selectOnly(data);
                     break;
                 case "deselectFlavors":
-                    result = await this.deselectFlavors(data) as any;
+                    result = await this.deselectFlavors(data);
                     break;
                 case "deselectAllFlavors":
-                    result = await this.deselectAllFlavors(data) as any;
+                    result = await this.deselectAllFlavors(data);
                     break;
                 case "updateFlavors":
-                    result = await this.updateFlavors(data) as any;
-                    break;
-                case "addCustomFlavor":
-                    result = await this.addCustomFlavor(data) as any;
+                    result = await this.updateFlavors(data);
                     break;
                 case "rename":
-                    result = await this.rename(data) as any;
+                    result = await this.rename(data);
                     break;
                 case "save":
-                    result = await this.save(data) as any;
+                    result = await this.save(data);
                     break;
                 case "message":
-                    result = await this.message(data) as any;
+                    result = await this.message(data);
                     break;
                 case "kick":
-                    result = await this.kick(data) as any;
+                    result = await this.kick(data);
                     break;
                 case "mute":
-                    result = await this.mute(data) as any;
+                    result = await this.mute(data);
                     break;
                 case "viewOnly":
-                    result = await this.viewOnly(data) as any;
+                    result = await this.viewOnly(data);
                     break;
-
                 default:
                     console.log(data);
             }
-
             if (result == null || result == undefined) {
                 this.ws.send(JSON.stringify({
                     reqId: data.reqId,
                     status: "error",
                     message: "Failed to find the function"
                 }));
-            } else if (typeof result == "string") {
+            }
+            else if (typeof result == "string") {
                 this.ws.send(JSON.stringify({
                     reqId: data.reqId,
                     status: "error",
                     message: result
                 }));
-            } else if (result.message) {
+            }
+            else if (result.message) {
                 this.ws.send(JSON.stringify({
                     reqId: data.reqId,
                     status: "error",
                     message: result.message
                 }));
-            } else {
+            }
+            else {
                 this.ws.send(JSON.stringify({
                     reqId: data.reqId,
                     ...result
                 }));
             }
-        } catch (ex) {
+        }
+        catch (ex) {
             this.ws.send(JSON.stringify({
                 status: "error",
                 message: "There happened an error"
             }));
             console.error(ex);
         }
-
     }
-
-    public closedConnection(code: number, reason: Buffer<ArrayBufferLike>) {
-        this.game?.broadcast({
-            type: "playerLeft",
-            leftPlayer: {
-                endpointUUID: this.endpointUUID,
-                name: this.user?.name
-            }
-        });
-
-
-        if (this.user) this.user.selectedFlavors = [];
-        if (this.game) {
-            this.game.users = this.game.users.filter(e => e.endpointUUID !== this.endpointUUID);
-            if (this.game.owner == this.endpointUUID) {
-                this.game.close("Game host left");
-            }
-        }
+    closedConnection(code, reason) {
+        console.log(code);
     }
-
-
-    public send<T, E, S extends object = {}>(data: T): Promise<APIResponse<E, S>> {
+    send(data) {
         const reqId = this.currentReqId;
         this.currentReqId--;
-        return new Promise<APIResponse<E, S>>((res) => {
+        return new Promise((res) => {
             this.ws?.send(JSON.stringify({
                 reqId,
                 ...data
             }));
-
-            this.callbacks[reqId] = (data: APIResponse<E, S>) => {
+            this.callbacks[reqId] = (data) => {
                 res(data);
             };
         });
     }
 }
-
-
-function reqireArgsReturn<T extends {}>(data: T, requiredOnes: (keyof T)[] | "all"): true | string {
+function reqireArgsReturn(data, requiredOnes) {
     if (requiredOnes == "all") {
-        for (const required of Object.keys(data) as (keyof T)[]) {
+        for (const required of Object.keys(data)) {
             if (data[required] == null || data[required] == undefined) {
-                return `${required as string} has to be set`;
+                return `${required} has to be set`;
             }
         }
         return true;
     }
     for (const required of requiredOnes) {
         if (data[required] == null || data[required] == undefined) {
-            return `${required as string} has to be set`;
+            return `${required} has to be set`;
         }
     }
     return true;
 }
-
-function reqireArgs<T extends {}>(data: T, requiredOnes: (keyof T)[] | "all", send?: <E>(data: E, reqId: number) => void, reqId?: number) {
+function reqireArgs(data, requiredOnes, send, reqId) {
     if (requiredOnes == "all") {
-        for (const required of Object.keys(data) as (keyof T)[]) {
+        for (const required of Object.keys(data)) {
             if (data[required] == null || data[required] == undefined) {
                 reqId != undefined && send?.({
                     status: "error",
-                    message: `${required as string} has to be set`
+                    message: `${required} has to be set`
                 }, reqId);
                 return false;
             }
@@ -990,15 +829,14 @@ function reqireArgs<T extends {}>(data: T, requiredOnes: (keyof T)[] | "all", se
         if (data[required] == null || data[required] == undefined) {
             reqId != undefined && send?.({
                 status: "error",
-                message: `${required as string} has to be set`
+                message: `${required} has to be set`
             }, reqId);
             return false;
         }
     }
     return true;
 }
-
-function hasToBeSet<T>(data: T, key: string, send?: <E>(data: E, reqId: number) => void, reqId?: number) {
+function hasToBeSet(data, key, send, reqId) {
     if (data == null || data == undefined) {
         reqId != undefined && send?.({
             status: "error",
@@ -1007,36 +845,4 @@ function hasToBeSet<T>(data: T, key: string, send?: <E>(data: E, reqId: number) 
         return false;
     }
     return true;
-}
-
-export namespace Multiplayer {
-    export type User = {
-        userUUID: UUID | null;
-        endpointUUID: UUID;
-        connectionHandler: ConnectionHandler | null;
-        selectedFlavors: SelectedFlavor[];
-        name: string;
-        isMuted: boolean;
-        onlyView: boolean;
-    };
-
-    export type SelectedFlavor = {
-        flavorUUID: UUID;
-        trackUUID: UUID;
-    };
-
-    export type Meeting = {
-        users: User[];
-        tracks: ServerFlavorSynthLine[];
-        mainFlavor: MainFlavor;
-        name: string;
-        volumes: DishVolumes;
-        code: ShareDigits;
-        uuid: UUID;
-        owner: UUID;
-        customFlavors: DB.ServerCustomFlavor[];
-        broadcast: <T>(data: T, skip?: UUID) => boolean;
-        senDataTo: <T>(receiverEndpointUUID: UUID, data: T) => boolean;
-        close: (reason: string) => void;
-    };
 }

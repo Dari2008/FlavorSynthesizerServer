@@ -1,11 +1,12 @@
 import { ResultSetHeader, RowDataPacket } from "mysql2";
-import { DBConnection } from "./DBConnection";
-import Utils from "../utils/Utils";
-import { DB } from "../@types/db";
-import { DishVolumes, ServerDish, ServerFlavorSynthLine, UUID } from "../@types/User";
-import { MainFlavor } from "../@types/Flavors";
-import { ShareDigits, ShareFlavors } from "../@types/Api";
-import Users from "./Users";
+import { DBConnection } from "./DBConnection.js";
+import Utils from "../utils/Utils.js";
+import { DB } from "../@types/db.js";
+import { DishVolumes, MultiplayerServerDish, ServerDish, ServerFlavorSynthLine, UUID } from "../@types/User.js";
+import { MainFlavor } from "../@types/Flavors.js";
+import { ShareDigits, ShareFlavors } from "../@types/Api.js";
+import Users from "./Users.js";
+import CustomFlavorManager from "./CustomFlavorManager.js";
 
 export default class DishManager {
 
@@ -60,7 +61,7 @@ export default class DishManager {
         const [rows] = result;
 
         async function compileDish(row: RowDataPacket) {
-            return new Promise<ServerDish>(async (res) => {
+            return new Promise<MultiplayerServerDish>(async (res) => {
                 const dishUserId = `${row["userUUID"]}.${row["uuid"]}`
                 const result = await DBConnection.preparedQuery<RowDataPacket[]>("SELECT `AIImage` FROM `shares` WHERE `dish` = :dish", { dish: dishUserId });
                 let aiImage = null;
@@ -80,12 +81,13 @@ export default class DishManager {
                     name: row["name"],
                     mainFlavor: row["mainFlavor"] as MainFlavor,
                     publishState: row["publishState"] as "public" | "private",
+                    customFlavors: !!row["customFlavors"] ? await CustomFlavorManager.getFlavors(row["userUUID"], row["customFlavors"]) : [],
                     share: {
                         aiImage: aiImage,
                         code: undefined,
                         flavors: undefined
                     }
-                } as ServerDish);
+                } as MultiplayerServerDish);
             });
         }
 
@@ -121,15 +123,16 @@ export default class DishManager {
             name: row["name"],
             mainFlavor: row["mainFlavor"] as MainFlavor,
             publishState: row["publishState"] as "public" | "private",
+            customFlavors: !!row["customFlavors"] ? await CustomFlavorManager.getFlavors(userUUID, row["customFlavors"]) : [],
             share: share
-        } as ServerDish;
+        } as MultiplayerServerDish;
     }
 
-    public static async updateDish(userUUID: UUID, dishUUID: UUID, dish: Pick<ServerDish, "mainFlavor" | "name" | "tracks" | "volumes">): Promise<boolean> {
+    public static async updateDish(userUUID: UUID, dishUUID: UUID, dish: Pick<ServerDish, "mainFlavor" | "name" | "tracks" | "volumes" | "customFlavors">): Promise<boolean> {
 
         const flavorCount = dish.tracks.map(e => e.elements.length).reduce((a, b) => a + b, 0);
 
-        const result = await DBConnection.preparedQuery<ResultSetHeader>("UPDATE `dishes` SET `tracks` = :tracks, `volumes` = :volumes, `name` = :name, `mainFlavor` = :mainFlavor, `flavor_count` = :flavorCount WHERE `userUUID` = :userUUID AND `uuid` = :dishUUID",
+        const result = await DBConnection.preparedQuery<ResultSetHeader>("UPDATE `dishes` SET `tracks` = :tracks, `volumes` = :volumes, `name` = :name, `mainFlavor` = :mainFlavor, `flavor_count` = :flavorCount, `customFlavors`=:customFlavors WHERE `userUUID` = :userUUID AND `uuid` = :dishUUID",
             {
                 userUUID,
                 dishUUID,
@@ -137,6 +140,7 @@ export default class DishManager {
                 mainFlavor: dish.mainFlavor,
                 tracks: JSON.stringify(dish.tracks),
                 name: dish.name,
+                customFlavors: JSON.stringify(dish.customFlavors),
                 flavorCount
             });
         if (!result) return false;
@@ -155,7 +159,7 @@ export default class DishManager {
         return true;
     }
 
-    public static async addDishes(userUUID: UUID, dishes: Pick<ServerDish, "mainFlavor" | "name" | "tracks" | "volumes" | "uuid" | "publishState">[]) {
+    public static async addDishes(userUUID: UUID, dishes: Pick<ServerDish, "mainFlavor" | "name" | "tracks" | "volumes" | "uuid" | "publishState" | "customFlavors">[]) {
         const username = await Users.getUserName(userUUID);
         if (!username) return null;
 
@@ -175,7 +179,7 @@ export default class DishManager {
 
             const flavorCount = dish.tracks.flatMap(e => e.elements).length;
             all.push(DBConnection.preparedQuery<ResultSetHeader>(
-                "INSERT INTO `dishes` (`userUUID`, `uuid`, `tracks`, `publishState`, `flavor_count`, `creator`, `volumes`, `name`, `mainFlavor`) VALUES (:userUUID, :dishUUID, :tracks, :publishState, :flavorCount, :creator, :volumes, :name, :mainFlavor)",
+                "INSERT INTO `dishes` (`userUUID`, `uuid`, `tracks`, `publishState`, `flavor_count`, `creator`, `volumes`, `name`, `mainFlavor`, `customFlavors`) VALUES (:userUUID, :dishUUID, :tracks, :publishState, :flavorCount, :creator, :volumes, :name, :mainFlavor, :customFlavors)",
                 {
                     userUUID,
                     dishUUID: uuid,
@@ -185,7 +189,8 @@ export default class DishManager {
                     flavorCount: flavorCount,
                     volumes: JSON.stringify(dish.volumes),
                     name: dish.name,
-                    mainFlavor: dish.mainFlavor
+                    mainFlavor: dish.mainFlavor,
+                    customFlavors: JSON.stringify(dish.customFlavors)
                 }
             ));
 
@@ -245,7 +250,7 @@ export default class DishManager {
         if (!result) return false;
         const [rows] = result;
 
-        const compiled: ServerDish[] = [];
+        const compiled: MultiplayerServerDish[] = [];
         const promises: Promise<void>[] = [];
 
         for (let i = 0; i < rows.length; i++) {
@@ -260,10 +265,11 @@ export default class DishManager {
                     uuid: row["uuid"] as UUID,
                     volumes: row["volumes"] as DishVolumes,
                     name: row["name"],
+                    customFlavors: row["customFlavors"],
                     mainFlavor: row["mainFlavor"] as MainFlavor,
                     publishState: row["publishState"] as "public" | "private",
                     share: share
-                } as ServerDish;
+                } as MultiplayerServerDish;
                 compiled.push(obj);
                 res();
             }))
@@ -274,7 +280,7 @@ export default class DishManager {
         return compiled;
     }
 
-    public static async updateEntireDish(userUUID: UUID, dishUUID: UUID, tracks: ServerFlavorSynthLine[], mainFlavor: MainFlavor, name: string, volumes: DishVolumes) {
+    public static async updateEntireDish(userUUID: UUID, dishUUID: UUID, tracks: ServerFlavorSynthLine[], mainFlavor: MainFlavor, name: string, volumes: DishVolumes, customFlavors: UUID[]) {
         const flavorCount = tracks.map(e => e.elements.length).reduce((a, b) => a + b, 0);
 
         console.log(userUUID, dishUUID, tracks, mainFlavor, name, volumes);
@@ -285,7 +291,7 @@ export default class DishManager {
             return false;
         }
 
-        const result = await DBConnection.preparedQuery<ResultSetHeader>("INSERT INTO `dishes` (`userUUID`, `uuid`, `tracks`, `volumes`, `name`, `mainFlavor`, `flavor_count`, `publishState`, `creator`) VALUES (:userUUID, :dishUUID, :tracks, :volumes, :name, :mainFlavor, :flavorCount, 'private', :username) ON DUPLICATE KEY UPDATE `tracks` = VALUES(`tracks`), `volumes` = VALUES(`volumes`), `name` = VALUES(`name`), `mainFlavor` = VALUES(`mainFlavor`), `flavor_count` = VALUES(`flavor_count`);",
+        const result = await DBConnection.preparedQuery<ResultSetHeader>("INSERT INTO `dishes` (`userUUID`, `uuid`, `tracks`, `volumes`, `name`, `mainFlavor`, `flavor_count`, `publishState`, `creator`, `customFlavors`) VALUES (:userUUID, :dishUUID, :tracks, :volumes, :name, :mainFlavor, :flavorCount, 'private', :username, :customFlavors) ON DUPLICATE KEY UPDATE `tracks` = VALUES(`tracks`), `volumes` = VALUES(`volumes`), `name` = VALUES(`name`), `mainFlavor` = VALUES(`mainFlavor`), `flavor_count` = VALUES(`flavor_count`), `customFlavors` = VALUES(`customFlavors`);",
             {
                 userUUID,
                 dishUUID,
@@ -294,7 +300,8 @@ export default class DishManager {
                 tracks: JSON.stringify(tracks),
                 name: name,
                 flavorCount,
-                username
+                username,
+                customFlavors: JSON.stringify(customFlavors)
             });
         if (!result) return false;
         return true;

@@ -1,6 +1,6 @@
-import { Digit, ShareDigits, ShareFlavors } from "./Api";
-import { Flavor, MainFlavor } from "./Flavors";
-import { DishVolumes, ServerDish, ServerFlavorSynthLine, UUID } from "./User"
+import { Digit, ShareDigits, ShareFlavors } from "./Api.js";
+import { Flavor, MainFlavor } from "./Flavors.js";
+import { DishVolumes, MultiplayerServerDish, ServerDish, ServerFlavorSynthLine, UUID } from "./User.js"
 
 export namespace DB {
 
@@ -8,7 +8,7 @@ export namespace DB {
 
     export type DishUserReference = `${UUID}.${UUID}`;
 
-    export type ShareDishReference = DishUserReference | ServerDish;
+    export type ShareDishReference = DishUserReference | MultiplayerServerDish;
 
     export type User = {
         uuid: UUID;

@@ -1,6 +1,6 @@
 import { UUID } from "node:crypto";
-import { DishVolumes, RestaurantDish, ServerDish } from "./User";
-import { Flavor } from "./Flavors";
+import { DishVolumes, MultiplayerServerDish, RestaurantDish, ServerDish } from "./User.js";
+import { Flavor } from "./Flavors.js";
 
 export type APIResponse<T, E extends object = {}> = SuccessAPIResponse<T> | ErrorAPIResponse<E>;
 
@@ -38,7 +38,7 @@ export type ShareResponse = {
 };
 
 export type OpenShareResponse = {
-    dish: ServerDish;
+    dish: MultiplayerServerDish;
     // aiImage: string;
     // uuid: string;
     // share: {
@@ -53,7 +53,7 @@ export type OpenShareResponse = {
 }
 
 export type DishLoadResponse = {
-    dishes: ServerDish[];
+    dishes: MultiplayerServerDish[];
 }
 
 export type AddDishResponse = {
@@ -81,7 +81,7 @@ export type VisibilityStateChangeResponse = {
 }
 
 export type LoadRestaurantData = {
-    dishes: RestaurantDish[];
+    dishes: MultiplayerServerDish[];
 }
 
 export type PageCountRestaurantData = {

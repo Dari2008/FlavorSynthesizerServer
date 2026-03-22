@@ -1,13 +1,5 @@
-import { BodyFormat, BodyFormatNodes } from "../../endpoints/utils/EndpointUtils.js";
-import { MAIN_FLAVORS } from "../Flavors.js";
-
-export const UUID_FORMAT: BodyFormatNodes = {
-    type: "string",
-    syntax: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    errorMessageSyntax: "The UUID is not correctly formatted!"
-};
-
-export const USERS_LOGIN_BODY: BodyFormat = {
+import { FLAVORS, MAIN_FLAVORS } from "../Flavors.js";
+export const USERS_LOGIN_BODY = {
     type: "object",
     children: {
         "username": {
@@ -20,8 +12,7 @@ export const USERS_LOGIN_BODY: BodyFormat = {
         }
     }
 };
-
-export const USERS_REGISTER_BODY: BodyFormat = {
+export const USERS_REGISTER_BODY = {
     type: "object",
     children: {
         "username": {
@@ -40,17 +31,15 @@ export const USERS_REGISTER_BODY: BodyFormat = {
         }
     }
 };
-
-export const DISHES_LOAD_BODY: BodyFormat = {
+export const DISHES_LOAD_BODY = {
     type: "object",
     children: {
         "jwt": {
             type: "string"
         }
     }
-}
-
-export const RESTAURANT_LOAD_BODY: BodyFormat = {
+};
+export const RESTAURANT_LOAD_BODY = {
     type: "object",
     isNullable: true,
     children: {
@@ -68,9 +57,8 @@ export const RESTAURANT_LOAD_BODY: BodyFormat = {
             isNullable: true
         }
     }
-}
-
-export const VOLUMES_FORMAT: BodyFormatNodes = {
+};
+export const VOLUMES_FORMAT = {
     type: "object",
     children: {
         mainFlavor: {
@@ -84,12 +72,12 @@ export const VOLUMES_FORMAT: BodyFormatNodes = {
         }
     }
 };
-
-export const TRACKS_ELEMENTS_FORMAT: BodyFormatNodes = {
+export const TRACKS_ELEMENTS_FORMAT = {
     type: "object",
     children: {
         flavor: {
-            type: "string"
+            type: "string",
+            allowedValues: FLAVORS
         },
         from: {
             type: "number"
@@ -98,9 +86,8 @@ export const TRACKS_ELEMENTS_FORMAT: BodyFormatNodes = {
             type: "number"
         }
     }
-}
-
-export const TRACKS_FORMAT: BodyFormatNodes = {
+};
+export const TRACKS_FORMAT = {
     type: "array",
     arrayValues: {
         type: "object",
@@ -121,16 +108,14 @@ export const TRACKS_FORMAT: BodyFormatNodes = {
         }
     }
 };
-
-export const PUBLISH_STATE_FORMAT: BodyFormatNodes = {
+export const PUBLISH_STATE_FORMAT = {
     type: "string",
     allowedValues: [
         "public",
         "private"
     ]
 };
-
-export const DISH_FORMAT: BodyFormatNodes = {
+export const DISH_FORMAT = {
     type: "object",
     children: {
         volumes: VOLUMES_FORMAT,
@@ -143,42 +128,9 @@ export const DISH_FORMAT: BodyFormatNodes = {
             type: "string",
             allowedValues: MAIN_FLAVORS
         },
-        customFlavors: {
-            type: "array",
-            isNullable: true,
-            arrayValues: {
-                type: "object",
-                children: {
-                    name: {
-                        type: "string"
-                    },
-                    audio: {
-                        type: "string",
-                        syntax: /(.*?);base64,(.*)/g,
-                        errorMessageSyntax: "audio is not a valid base64 string"
-                    },
-                    image: {
-                        type: "string",
-                        syntax: /(.*?);base64,(.*)/g,
-                        errorMessageSyntax: "image is not a valid base64 string"
-                    },
-                    colors: {
-                        type: "array",
-                        length: 3,
-                        arrayValues: {
-                            type: "string",
-                            syntax: /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/gm,
-                            errorMessageSyntax: "contains a color that doesnt have a valid syntax"
-                        }
-                    },
-                    uuid: UUID_FORMAT
-                }
-            }
-        }
     }
-}
-
-export const SHARE_BODY: BodyFormat = {
+};
+export const SHARE_BODY = {
     type: "object",
     children: {
         "dish": {
@@ -195,6 +147,7 @@ export const SHARE_BODY: BodyFormat = {
             arrayValues: {
                 type: "string",
                 isNullable: false,
+                allowedValues: FLAVORS
             }
         },
         jwt: {
@@ -202,10 +155,13 @@ export const SHARE_BODY: BodyFormat = {
             isNullable: true
         }
     }
-}
-
-
-export const SET_DISH_STATE_BODY: BodyFormat = {
+};
+export const UUID_FORMAT = {
+    type: "string",
+    syntax: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    errorMessageSyntax: "The UUID is not correctly formatted!"
+};
+export const SET_DISH_STATE_BODY = {
     type: "object",
     children: {
         jwt: {
@@ -214,9 +170,8 @@ export const SET_DISH_STATE_BODY: BodyFormat = {
         dishUUID: UUID_FORMAT,
         visibility: PUBLISH_STATE_FORMAT
     }
-}
-
-export const OPEN_SHARE_BODY: BodyFormat = {
+};
+export const OPEN_SHARE_BODY = {
     type: "object",
     children: {
         type: {
@@ -236,6 +191,7 @@ export const OPEN_SHARE_BODY: BodyFormat = {
             isNullable: true,
             arrayValues: {
                 type: "string",
+                allowedValues: FLAVORS
             },
             length: 6
         },
@@ -248,29 +204,8 @@ export const OPEN_SHARE_BODY: BodyFormat = {
             length: 6
         }
     }
-}
-
-export const UPDATE_DISH_BODY: BodyFormat = {
-    type: "object",
-    children: {
-        mainFlavor: {
-            type: "string",
-            allowedValues: MAIN_FLAVORS
-        },
-        name: {
-            type: "string"
-        },
-        tracks: TRACKS_FORMAT,
-        volumes: VOLUMES_FORMAT,
-        uuid: UUID_FORMAT,
-        customFlavors: {
-            type: "array",
-            arrayValues: UUID_FORMAT
-        }
-    }
 };
-
-export const ADD_DISH_BODY: BodyFormat = {
+export const UPDATE_DISH_BODY = {
     type: "object",
     children: {
         mainFlavor: {
@@ -285,15 +220,28 @@ export const ADD_DISH_BODY: BodyFormat = {
         uuid: UUID_FORMAT
     }
 };
-
-export const DELETE_DISH_BODY: BodyFormat = {
+export const ADD_DISH_BODY = {
+    type: "object",
+    children: {
+        mainFlavor: {
+            type: "string",
+            allowedValues: MAIN_FLAVORS
+        },
+        name: {
+            type: "string"
+        },
+        tracks: TRACKS_FORMAT,
+        volumes: VOLUMES_FORMAT,
+        uuid: UUID_FORMAT
+    }
+};
+export const DELETE_DISH_BODY = {
     type: "object",
     children: {
         uuid: UUID_FORMAT
     }
 };
-
-export const MULTIPLAYER_JOIN_BODY: BodyFormat = {
+export const MULTIPLAYER_JOIN_BODY = {
     type: "object",
     children: {
         code: {
@@ -311,9 +259,8 @@ export const MULTIPLAYER_JOIN_BODY: BodyFormat = {
             type: "string"
         }
     }
-}
-
-export const MULTIPLAYER_CREATE_BODY: BodyFormat = {
+};
+export const MULTIPLAYER_CREATE_BODY = {
     type: "object",
     children: {
         dishUUID: {
@@ -332,9 +279,8 @@ export const MULTIPLAYER_CREATE_BODY: BodyFormat = {
             type: "string"
         }
     }
-}
-
-export const CUSTOM_FLAVORS_GET_PUBLIC: BodyFormat = {
+};
+export const CUSTOM_FLAVORS_GET_PUBLIC = {
     type: "object",
     children: {
         filter: {
@@ -349,9 +295,8 @@ export const CUSTOM_FLAVORS_GET_PUBLIC: BodyFormat = {
             type: "number"
         }
     }
-}
-
-export const CUSTOM_FLAVORS_ADD: BodyFormat = {
+};
+export const CUSTOM_FLAVORS_ADD = {
     type: "object",
     children: {
         jwt: {
@@ -382,8 +327,7 @@ export const CUSTOM_FLAVORS_ADD: BodyFormat = {
         uuid: UUID_FORMAT
     }
 };
-
-export const CUSTOM_FLAVORS_REMOVE: BodyFormat = {
+export const CUSTOM_FLAVORS_REMOVE = {
     type: "object",
     children: {
         jwt: {
@@ -392,10 +336,7 @@ export const CUSTOM_FLAVORS_REMOVE: BodyFormat = {
         uuid: UUID_FORMAT
     }
 };
-
-
-
-export const CUSTOM_FLAVORS_GET_ALL: BodyFormat = {
+export const CUSTOM_FLAVORS_GET_ALL = {
     type: "object",
     children: {
         jwt: {
@@ -435,8 +376,7 @@ export const CUSTOM_FLAVORS_GET_ALL: BodyFormat = {
         }
     }
 };
-
-export const CUSTOM_FLAVORS_UPDATE_VISIBILITY: BodyFormat = {
+export const CUSTOM_FLAVORS_UPDATE_VISIBILITY = {
     type: "object",
     children: {
         jwt: {

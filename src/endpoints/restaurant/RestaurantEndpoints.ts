@@ -1,9 +1,9 @@
 import { Express } from "express";
-import { APIResponse, LoadRestaurantData, PageCountRestaurantData } from "../../@types/Api";
-import { RestaurantEndpointLoadBody } from "../../@types/Endpoints";
-import EndpointUtils from "../utils/EndpointUtils";
-import { RESTAURANT_LOAD_BODY, USERS_LOGIN_BODY } from "../../@types/ApiBodyFormats/Users";
-import DishManager from "../../sql/DishManager";
+import { APIResponse, LoadRestaurantData, PageCountRestaurantData } from "../../@types/Api.js";
+import { RestaurantEndpointLoadBody } from "../../@types/Endpoints.js";
+import EndpointUtils from "../utils/EndpointUtils.js";
+import { RESTAURANT_LOAD_BODY, USERS_LOGIN_BODY } from "../../@types/ApiBodyFormats/Users.js";
+import DishManager from "../../sql/DishManager.js";
 
 export default class RestaurantEndpoints {
     constructor(app: Express) {

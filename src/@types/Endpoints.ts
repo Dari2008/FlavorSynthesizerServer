@@ -1,7 +1,7 @@
-import { Digit, ShareDigits, ShareFlavors } from "./Api";
-import { DB } from "./db";
-import { MainFlavor } from "./Flavors";
-import { DishVolumes, ServerDish, ServerFlavorSynthLine, UUID } from "./User";
+import { Digit, ShareDigits, ShareFlavors } from "./Api.js";
+import { DB } from "./db.js";
+import { MainFlavor } from "./Flavors.js";
+import { DishVolumes, MultiplayerServerDish, ServerDish, ServerFlavorSynthLine, UUID } from "./User.js";
 
 export type UserEndpointLoginBody = {
     username?: string;
@@ -27,6 +27,7 @@ export type DishesEndpointUpdateDishBody = UserAction & {
     tracks?: ServerFlavorSynthLine[];
     volumes?: DishVolumes;
     uuid?: UUID;
+    customFlavors: UUID[];
 };
 
 export type DishesEndpointAddDishBody = UserAction & {
@@ -35,6 +36,7 @@ export type DishesEndpointAddDishBody = UserAction & {
     tracks?: ServerFlavorSynthLine[];
     volumes?: DishVolumes;
     uuid?: UUID;
+    customFlavors?: UUID[];
 };
 
 export type DishesEndpointDeleteDishBody = UserAction & {
@@ -69,7 +71,8 @@ export type MultiplayerEndpointJoinBody = UserAction & {
 
 export type MultiplayerEndpointCreateBody = UserAction & {
     dishUUID?: UUID;
-    dish?: ServerDish;
+    dish?: MultiplayerServerDish;
+    // customFlavors?: DB.ServerCustomFlavor[];
     name: string;
 }
 

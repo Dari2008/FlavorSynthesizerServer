@@ -1,13 +1,9 @@
-import mysql2, { Pool } from "mysql2/promise";
+import mysql2 from "mysql2/promise";
 import useDotEnv from "../Dotenv.js";
-
 export class DBConnection {
-    private static conn: Pool | null = null;
-
-    public static initDBConnection() {
-
+    static conn = null;
+    static initDBConnection() {
         const DOT_ENV = useDotEnv();
-
         DBConnection.conn = mysql2.createPool({
             host: DOT_ENV.DB_HOST,
             password: DOT_ENV.DB_PASSWORD,
@@ -20,19 +16,17 @@ export class DBConnection {
         });
         console.log("Connection to db established");
     }
-
-    public static async preparedQuery<T extends mysql2.QueryResult>(query: string, args: { [key: string]: string | number | boolean } | any[] = {}) {
-        if (!DBConnection.conn) return false;
-        return new Promise<[T, mysql2.FieldPacket[]] | undefined>(async (res, rej) => {
-            const result = await DBConnection.conn?.execute<T>(query, args).catch(rej);
+    static async preparedQuery(query, args = {}) {
+        if (!DBConnection.conn)
+            return false;
+        return new Promise(async (res, rej) => {
+            const result = await DBConnection.conn?.execute(query, args).catch(rej);
             if (!result) {
                 res(undefined);
                 return;
             }
             const [rows, fields] = result;
             res([rows, fields]);
-
         });
     }
-
 }

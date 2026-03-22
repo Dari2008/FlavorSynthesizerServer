@@ -1,10 +1,10 @@
 import { ResultSetHeader, RowDataPacket } from "mysql2";
-import { UUID } from "../@types/User";
-import { DBConnection } from "./DBConnection";
+import { UUID } from "../@types/User.js";
+import { DBConnection } from "./DBConnection.js";
 import argon2 from "argon2";
-import Utils, { JWTUtils } from "../utils/Utils";
-import useDotEnv from "../Dotenv";
-import { DB } from "../@types/db";
+import Utils, { JWTUtils } from "../utils/Utils.js";
+import useDotEnv from "../Dotenv.js";
+import { DB } from "../@types/db.js";
 
 export default class Users {
 
