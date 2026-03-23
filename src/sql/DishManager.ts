@@ -283,7 +283,6 @@ export default class DishManager {
     public static async updateEntireDish(userUUID: UUID, dishUUID: UUID, tracks: ServerFlavorSynthLine[], mainFlavor: MainFlavor, name: string, volumes: DishVolumes, customFlavors: UUID[]) {
         const flavorCount = tracks.map(e => e.elements.length).reduce((a, b) => a + b, 0);
 
-        console.log(userUUID, dishUUID, tracks, mainFlavor, name, volumes);
 
         const username = await Users.getUserName(userUUID);
         if (!username) {

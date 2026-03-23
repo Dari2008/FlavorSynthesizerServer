@@ -15,7 +15,7 @@ export default class CustomFlavorEndpoints {
             const body = req.body as CustomFlavorGetPublicBody;
             if (!EndpointUtils.checkAndSend(body, CUSTOM_FLAVORS_GET_PUBLIC, res)) return;
 
-            const flavors = await CustomFlavorManager.getAllPublicFlavors();
+            const flavors = await CustomFlavorManager.getAllPublicFlavors(body.page ?? 0);
 
             EndpointUtils.sendOk(res, {
                 customFlavors: flavors

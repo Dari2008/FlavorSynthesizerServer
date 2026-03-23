@@ -38,7 +38,6 @@ export default class ShareManager {
             const color = this.getPixelAt(data, info, [pixel, 0]);
             const digit = this.convertColorToDigit(color);
             digits.push(digit);
-            console.log(pixel, digit, color);
         }
 
         return await this.getDishByCode(digits as ShareDigits);
@@ -191,7 +190,6 @@ export default class ShareManager {
                 const aiGenResult = await this.generateAIIMage(flavors, code);
                 aiImage = !!aiGenResult ? aiGenResult : "";
             }
-            console.log(userUUID, shareUUID, dishRef, aiImage, code, flavors)
 
             const result = await DBConnection.preparedQuery<ResultSetHeader>("INSERT INTO `shares` (`userUUID`, `uuid`, `dish`, `AIImage`, `code`, `flavors`) VALUES (:userUUID, :shareUUID, :dishRef, :aiImage, :code, :flavors)",
                 {
@@ -269,6 +267,7 @@ export default class ShareManager {
                 ["Content-Type", "application/json"],
                 ["Authorization", `Bearer ${key}`]
             ],
+            method: "POST",
             body: JSON.stringify({
                 "description": `Make a dish of all these flavors on a plate: ${flavors.join(",")}`,
                 "image_size": {

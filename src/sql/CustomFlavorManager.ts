@@ -6,8 +6,11 @@ import { UUID } from "node:crypto";
 
 export default class CustomFlavorManager {
 
-    public static async getAllPublicFlavors(): Promise<DB.ServerCustomFlavor[]> {
-        const response = await DBConnection.preparedQuery<RowDataPacket[]>("SELECT * FROM `customFlavors` WHERE `public` = TRUE");
+    public static PAGE_SIZE = 10;
+
+    public static async getAllPublicFlavors(page: number = 0): Promise<DB.ServerCustomFlavor[]> {
+        if (typeof page !== "number") return [];
+        const response = await DBConnection.preparedQuery<RowDataPacket[]>("SELECT * FROM `customFlavors` WHERE `public` = TRUE LIMIT " + CustomFlavorManager.PAGE_SIZE + " OFFSET " + (page * CustomFlavorManager.PAGE_SIZE) + ";");
         if (!response) return [];
         const [rows,] = response;
         const customFlavors: DB.ServerCustomFlavor[] = [];
@@ -18,7 +21,7 @@ export default class CustomFlavorManager {
                 image: row["image"],
                 name: row["name"],
                 colors: row["colors"],
-                isPublic: row["isPublic"],
+                isPublic: row["public"] == 1,
                 uuid: row["uuid"],
                 creator: username
             });
@@ -60,7 +63,7 @@ export default class CustomFlavorManager {
                 image: row["image"],
                 name: row["name"],
                 colors: row["colors"],
-                isPublic: row["isPublic"],
+                isPublic: row["public"] == 1,
                 uuid: row["uuid"],
                 creator: username || "Unknown"
             });
@@ -96,7 +99,7 @@ export default class CustomFlavorManager {
                 image: row["image"],
                 name: row["name"],
                 colors: row["colors"],
-                isPublic: row["isPublic"],
+                isPublic: row["public"] == 1,
                 uuid: row["uuid"],
                 creator: username || "Unknown"
             });

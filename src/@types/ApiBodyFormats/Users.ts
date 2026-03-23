@@ -339,6 +339,7 @@ export const CUSTOM_FLAVORS_GET_PUBLIC: BodyFormat = {
     children: {
         filter: {
             type: "string",
+            isNullable: true,
             allowedValues: [
                 "newest",
                 "oldest",
@@ -346,7 +347,8 @@ export const CUSTOM_FLAVORS_GET_PUBLIC: BodyFormat = {
             ]
         },
         page: {
-            type: "number"
+            type: "number",
+            isNullable: true
         }
     }
 }
